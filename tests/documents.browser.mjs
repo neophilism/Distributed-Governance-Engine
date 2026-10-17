@@ -108,6 +108,40 @@ test(
       await owner.click('.public-create input[type="checkbox"]');
       await click(owner, "Publish current text");
       await saved(owner, 1);
+      assert.deepEqual(
+        await owner.evaluate(() => {
+          const toolbar = document.querySelector(".toolbar"),
+            editor = document.querySelector(".ProseMirror");
+          return {
+            toolbarRole: toolbar?.getAttribute("role"),
+            toolbarLabel: toolbar?.getAttribute("aria-label"),
+            editorRole: editor?.getAttribute("role"),
+            editorLabel: editor?.getAttribute("aria-label"),
+            editorMultiline: editor?.getAttribute("aria-multiline"),
+          };
+        }),
+        {
+          toolbarRole: "toolbar",
+          toolbarLabel: "Legal editor tools",
+          editorRole: "textbox",
+          editorLabel: "Legal document text",
+          editorMultiline: "true",
+        },
+      );
+      await owner.keyboard.press("Tab");
+      await owner.$eval(".ProseMirror", (editor) => editor.focus());
+      assert.deepEqual(
+        await owner.$eval(".ProseMirror", (editor) => {
+          const style = getComputedStyle(editor);
+          return {
+            focusVisible: editor.matches(":focus-visible"),
+            outlineStyle: style.outlineStyle,
+            outlineWidth: style.outlineWidth,
+          };
+        }),
+        { focusVisible: true, outlineStyle: "solid", outlineWidth: "3px" },
+        "Keyboard focus on the legal textbox must be visible.",
+      );
       const link = await owner.$eval(".save-controls a", (a) => a.href),
         id = new URL(link).searchParams.get("document");
       assert.ok(id);
@@ -244,6 +278,19 @@ test(
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
         true,
+      );
+      await owner.setViewport({ width: 320, height: 720 });
+      assert.equal(
+        await owner.evaluate(() => {
+          const paper = document.querySelector(".paper").getBoundingClientRect();
+          return (
+            document.documentElement.scrollWidth <= innerWidth &&
+            paper.left >= 0 &&
+            paper.right <= innerWidth
+          );
+        }),
+        true,
+        "The document must reflow at 320 CSS pixels without page-level horizontal scrolling.",
       );
       await owner.setViewport({ width: 1440, height: 1050 });
       await owner.click('.side-panel section input[type="checkbox"]');

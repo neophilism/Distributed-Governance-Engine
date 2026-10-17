@@ -673,6 +673,7 @@ function App() {
           )}
           <div
             className="toolbar"
+            role="toolbar"
             aria-label="Legal editor tools"
             data-tour="toolbar"
           >
