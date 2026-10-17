@@ -25,7 +25,9 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
   await assert.rejects(verifyIdentityRuntime(owner),/Unprivileged/);
   const flags=(await runtime.query('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0];
   assert.deepEqual(flags,{rolsuper:false,rolbypassrls:false});
-  const store=createIdentityStore({transaction:pgTransactions(runtime),sessionKey:randomBytes(32),stateKey:randomBytes(32),origin:'https://quill.example'});
+  const store=createIdentityStore({transaction:pgTransactions(runtime),sessionKey:randomBytes(32),stateKey:randomBytes(32),origin:'https://quill.example',
+    verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false}}),
+    verifyPasskeyAuthentication:async({response})=>({verified:response?.accepted===true,userVerified:response?.userVerified===true,credentialId:response?.credentialId,newCounter:response?.newCounter})});
   const user=async()=>({...await store.establishSession({issuer:'https://test-provider.example',subject:randomUUID(),authenticatedAt:Date.now(),authenticationMethods:['pwd','mfa']}),origin:'https://quill.example'});
   const a=await user(),b=await user(),c=await user(),{tenantId}=await store.createTenant(a);let remainingOwner=a;
   const invitation=await store.invite(a,tenantId,b.accountId,'editor');
@@ -67,6 +69,20 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const active=(await owner.query('SELECT count(*)::int AS n FROM dge_identity.recovery_codes WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[rotationUser.accountId])).rows[0].n;
     assert.equal(active,8);
     await store.logout({...recovered,origin:'https://quill.example'});
+  });
+  await t.test('a passkey challenge is consumed once and only fresh user verification authorizes a device',async()=>{
+    const passkeyUser=await user(),credentialId=randomBytes(32).toString('base64url');
+    const enrollment=await store.beginPasskeyEnrollment(passkeyUser);
+    const enrollResults=await Promise.allSettled([0,1].map(()=>store.finishPasskeyEnrollment(passkeyUser,enrollment.challenge,{accepted:true,credentialId})));
+    assert.equal(enrollResults.filter(item=>item.status==='fulfilled').length,1);
+    assert.ok(enrollResults.find(item=>item.status==='rejected').reason instanceof AccessError);
+    await assert.rejects(store.authorizeDevice(passkeyUser,'a'.repeat(64)),AccessError);
+    const authentication=await store.beginPasskeyAuthentication(passkeyUser);
+    await store.finishPasskeyAuthentication(passkeyUser,authentication.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1});
+    await store.authorizeDevice(passkeyUser,'a'.repeat(64));
+    assert.equal((await store.devices(passkeyUser)).items.length,1);
+    const rollback=await store.beginPasskeyAuthentication(passkeyUser);
+    await assert.rejects(store.finishPasskeyAuthentication(passkeyUser,rollback.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1}),AccessError);
   });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
     const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
