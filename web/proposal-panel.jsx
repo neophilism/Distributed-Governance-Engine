@@ -22,6 +22,7 @@ export function ProposalPanel({
     [rationale, setRationale] = useState(""),
     [disclosed, setDisclosed] = useState(false),
     [busy, setBusy] = useState(false),
+    [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
   const pending = useRef(null);
@@ -32,9 +33,12 @@ export function ProposalPanel({
     setError("");
   }, [doc.id]);
   useEffect(() => {
-    if (!open || !record) return;
+    if (!open || !record) {
+      setLoading(false);
+      return;
+    }
     const abort = new AbortController();
-    setBusy(true);
+    setLoading(true);
     setItems([]);
     setCursor(null);
     api(`/api/public/documents/${doc.id}/proposals`, { signal: abort.signal })
@@ -47,7 +51,7 @@ export function ProposalPanel({
           setError("Suggested changes could not be loaded.");
       })
       .finally(() => {
-        if (!abort.signal.aborted) setBusy(false);
+        if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
   }, [open, doc.id, refresh]);
@@ -154,7 +158,9 @@ export function ProposalPanel({
               ? "Public input · Source text stays fixed"
               : "Collaboration · Suggestions do not directly edit the source"}
           </p>
-          <p role="status">{busy ? "Loading…" : error}</p>
+          <p role="status">
+            {busy ? "Publishing…" : loading ? "Loading suggestions…" : error}
+          </p>
           {composer && (
             <form className="proposal-composer" onSubmit={submit}>
               <h3>Propose exact wording</h3>
@@ -256,14 +262,17 @@ export function ProposalPanel({
             </section>
           )}
           <h3>All suggestions</h3>
-          <button disabled={busy} onClick={() => setRefresh((x) => x + 1)}>
+          <button
+            disabled={busy || loading}
+            onClick={() => setRefresh((x) => x + 1)}
+          >
             Refresh suggestions
           </button>
           <ul className="proposal-list">
             {items.map((item) => (
               <li key={item.proposal.id}>
                 <button
-                  disabled={busy}
+                  disabled={busy || loading}
                   onClick={() => {
                     setSelected(item);
                     setComposer(null);
@@ -286,9 +295,9 @@ export function ProposalPanel({
           )}
           {cursor && (
             <button
-              disabled={busy}
+              disabled={busy || loading}
               onClick={async () => {
-                setBusy(true);
+                setLoading(true);
                 try {
                   const result = await api(
                     `/api/public/documents/${doc.id}/proposals?after=${cursor}`,
@@ -298,7 +307,7 @@ export function ProposalPanel({
                 } catch {
                   setError("More suggestions could not be loaded.");
                 } finally {
-                  setBusy(false);
+                  setLoading(false);
                 }
               }}
             >
