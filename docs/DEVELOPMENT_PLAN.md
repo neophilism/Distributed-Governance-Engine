@@ -52,7 +52,7 @@ Release gates: exact-head required CI; applicable security/authorization/accessi
 
 DCE-004 is implemented in actual merged PR #2. The editor foundation contributes to DCE-005; inline link UI, authenticated durable save, IME/network/browser/accessibility evidence and production integration remain incomplete. Contributions must never count as completed unit acceptance.
 
-DCE-002 has a partial server implementation for OIDC login, persisted sessions, membership/invitations, scoped database permissions and audit events. See IDENTITY_FOUNDATION.md and decisions/0002-low-cost-identity.md. Recovery, passkey/device assurance, HTTP/UI integration and deployment acceptance remain planned. No hosted service or paid resource is created for this contribution.
+DCE-002 has a partial server implementation for OIDC login, persisted sessions, membership/invitations, scoped database permissions and audit events. See IDENTITY_FOUNDATION.md and decisions/0002-low-cost-identity.md. Recovery, passkey/device assurance and deployment acceptance remain planned. HTTP/account UI integration now has a TLS browser test with a synthetic provider, pending production acceptance. No hosted service or paid resource is created for this contribution.
 
 DCE-005 also includes literal body-text find/replace, bounded replace-all with one-step undo, Unicode-aware positions, safe failures and readonly search. Inline links/citations, authenticated save and real-browser/IME/network/accessibility acceptance remain unfinished. Local DOM interaction tests do not establish real-browser layout or screen-reader behavior.
 

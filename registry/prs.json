@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 6,
+  "roadmapVersion": 7,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T05:47:53.314Z",
+  "observedAt": "2026-10-17T12:30:09.068Z",
   "units": [
     {
       "id": "DCE-001",
@@ -49,7 +49,8 @@
       "operationalAcceptance": "unverified",
       "contributingPrs": [
         4,
-        6
+        6,
+        7
       ]
     },
     {
@@ -943,16 +944,31 @@
       "id": 4897698437,
       "number": 6,
       "title": "DCE-002: Use actual provider login time for sensitive actions (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/6",
       "createdAt": "2026-10-17T05:47:27Z",
-      "updatedAt": "2026-10-17T05:47:27Z",
+      "updatedAt": "2026-10-17T05:49:44Z",
+      "mergedAt": "2026-10-17T05:49:44Z",
+      "closedAt": "2026-10-17T05:49:44Z",
+      "draft": false,
+      "headSha": "9f91697eb44facf7e4529b2db920146276904c04",
+      "baseRef": "main",
+      "mergeCommitSha": "c06a85068294e737d5df3c0ebf13994575edcc29"
+    },
+    {
+      "id": 4900048825,
+      "number": 7,
+      "title": "DCE-002: Connect secure account routes and workspace UI (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/7",
+      "createdAt": "2026-10-17T12:29:20Z",
+      "updatedAt": "2026-10-17T12:29:20Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "657f9c246cdca9f13a71ba0407fa92049de5831f",
+      "headSha": "05d3ebbfcd4c03e2664b0201ebcaedbd21423574",
       "baseRef": "main",
-      "mergeCommitSha": "d74bca68085c874ef6d66639245808c454214234"
+      "mergeCommitSha": "3b7206ee91df8ae8163b788330f5413b913084ba"
     }
   ]
 }
