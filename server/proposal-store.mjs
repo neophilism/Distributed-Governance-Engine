@@ -1,0 +1,250 @@
+import { randomUUID } from "node:crypto";
+import { digest } from "../src/integrity.mjs";
+import {
+  createTextProposal,
+  textProposalDigest,
+} from "../src/legal-proposals.mjs";
+import { legalDocumentDigest } from "../src/legal-schema.mjs";
+import { DocumentError } from "./document-store.mjs";
+const uuid = (value) =>
+  typeof value === "string" &&
+  /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
+const requireValue = (value, code, status = 400) => {
+  if (!value) throw new DocumentError(code, status);
+};
+const view = (row, currentVersion) => {
+  requireValue(
+    textProposalDigest(row.proposal) === row.digest,
+    "PROPOSAL_INTEGRITY_ERROR",
+    503,
+  );
+  return {
+    proposal: row.proposal,
+    digest: row.digest,
+    baseVersion: row.base_version,
+    createdAt: new Date(row.created_at).toISOString(),
+    stale: row.base_version !== currentVersion,
+    anchorStatus: "pending",
+  };
+};
+/** First public-content adapter: creation is restricted to workspace contributors. */
+export function createProposalStore({
+  identity,
+  transaction,
+  clock = Date.now,
+  maxPerDocument = 500,
+  maxPerAuthor = 50,
+  maxStoredBytes = 30000000,
+}) {
+  for (const n of [maxPerDocument, maxPerAuthor, maxStoredBytes])
+    if (!Number.isSafeInteger(n) || n < 1 || n > 1000000000)
+      throw Error("Invalid proposal budget");
+  const now = () => {
+    const n = clock();
+    if (!Number.isSafeInteger(n) || n < 0) throw Error("Invalid clock");
+    return new Date(n);
+  };
+  async function publicContext(documentId, operation) {
+    requireValue(uuid(documentId), "INVALID_DOCUMENT_ID");
+    return transaction(async (db) => {
+      await db.query("SELECT set_config('dge.public_document_id',$1,true)", [
+        documentId,
+      ]);
+      const source = (
+        await db.query(
+          "SELECT version FROM dge_documents.documents WHERE id=$1",
+          [documentId],
+        )
+      ).rows[0];
+      requireValue(source, "DOCUMENT_NOT_FOUND", 404);
+      return operation(db, source.version);
+    });
+  }
+  return Object.freeze({
+    async create(
+      credentials,
+      tenantId,
+      documentId,
+      { baseVersion, selection, replacement, rationale, commandId, disclosure },
+    ) {
+      requireValue(
+        uuid(tenantId) && uuid(documentId) && uuid(commandId),
+        "INVALID_PROPOSAL_CONTEXT",
+      );
+      requireValue(
+        Number.isSafeInteger(baseVersion) &&
+          baseVersion >= 1 &&
+          baseVersion <= 1000000,
+        "INVALID_VERSION",
+      );
+      requireValue(
+        disclosure === "publish-proposal-v1",
+        "PUBLIC_DISCLOSURE_REQUIRED",
+      );
+      return identity.withTenant(
+        credentials,
+        tenantId,
+        { write: true, roles: ["owner", "admin", "editor", "participant"] },
+        async (db, actor) => {
+          let requestDigest;
+          try {
+            requestDigest = digest("text-proposal-command-v1", {
+              actorId: actor.accountId,
+              documentId,
+              baseVersion,
+              selection,
+              replacement,
+              rationale,
+              disclosure,
+            });
+          } catch {
+            throw new DocumentError("INVALID_PROPOSAL_INPUT");
+          }
+          const current = (
+            await db.query(
+              "SELECT version FROM dge_documents.documents WHERE tenant_id=$1 AND id=$2 FOR SHARE",
+              [tenantId, documentId],
+            )
+          ).rows[0];
+          requireValue(current, "DOCUMENT_NOT_FOUND", 404);
+          const prior = (
+            await db.query(
+              "SELECT * FROM dge_proposals.proposals WHERE tenant_id=$1 AND command_id=$2",
+              [tenantId, commandId],
+            )
+          ).rows[0];
+          if (prior) {
+            requireValue(
+              prior.request_digest === requestDigest,
+              "COMMAND_REUSED",
+              409,
+            );
+            return view(prior, current.version);
+          }
+          const base = (
+            await db.query(
+              "SELECT document,digest FROM dge_documents.versions WHERE tenant_id=$1 AND document_id=$2 AND version=$3",
+              [tenantId, documentId, baseVersion],
+            )
+          ).rows[0];
+          requireValue(base, "VERSION_NOT_FOUND", 404);
+          requireValue(
+            legalDocumentDigest(base.document) === base.digest,
+            "DOCUMENT_INTEGRITY_ERROR",
+            503,
+          );
+          let proposal;
+          try {
+            proposal = createTextProposal(base.document, {
+              id: randomUUID(),
+              selection,
+              replacement,
+              rationale,
+            });
+          } catch {
+            throw new DocumentError("INVALID_TEXT_SELECTION_OR_REPLACEMENT");
+          }
+          const counts = (
+            await db.query(
+              "SELECT count(*)::int AS total,count(*) FILTER(WHERE actor_id=$3)::int AS own FROM dge_proposals.proposals WHERE tenant_id=$1 AND document_id=$2",
+              [tenantId, documentId, actor.accountId],
+            )
+          ).rows[0];
+          requireValue(
+            counts.total < maxPerDocument && counts.own < maxPerAuthor,
+            "PROPOSAL_LIMIT_REACHED",
+            429,
+          );
+          const bytes = Buffer.byteLength(JSON.stringify(proposal));
+          requireValue(
+            (
+              await db.query(
+                "UPDATE dge_documents.usage SET stored_bytes=stored_bytes+$2 WHERE tenant_id=$1 AND stored_bytes+$2<=$3 RETURNING stored_bytes",
+                [tenantId, bytes, maxStoredBytes],
+              )
+            ).rows.length,
+            "STORAGE_LIMIT_REACHED",
+            429,
+          );
+          const value = textProposalDigest(proposal),
+            at = now();
+          await db.query(
+            "INSERT INTO dge_proposals.proposals(tenant_id,document_id,id,base_version,proposal,digest,actor_id,created_at,command_id,request_digest) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+            [
+              tenantId,
+              documentId,
+              proposal.id,
+              baseVersion,
+              proposal,
+              value,
+              actor.accountId,
+              at,
+              commandId,
+              requestDigest,
+            ],
+          );
+          await db.query(
+            "INSERT INTO dge_proposals.anchor_outbox(tenant_id,document_id,proposal_id,event_digest,created_at) VALUES($1,$2,$3,$4,$5)",
+            [
+              tenantId,
+              documentId,
+              proposal.id,
+              digest("public-proposal-event-v1", {
+                documentId,
+                proposalId: proposal.id,
+                proposalDigest: value,
+                baseVersion,
+                createdAt: at.toISOString(),
+              }),
+              at,
+            ],
+          );
+          return view(
+            {
+              proposal,
+              digest: value,
+              base_version: baseVersion,
+              created_at: at,
+            },
+            current.version,
+          );
+        },
+      );
+    },
+    async list(documentId, { after = null, limit = 20 } = {}) {
+      requireValue(
+        (after === null || uuid(after)) &&
+          Number.isSafeInteger(limit) &&
+          limit >= 1 &&
+          limit <= 100,
+        "INVALID_PAGE",
+      );
+      return publicContext(documentId, async (db, currentVersion) => {
+        const rows = (
+          await db.query(
+            "SELECT * FROM dge_proposals.proposals WHERE document_id=$1 AND ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3",
+            [documentId, after, limit + 1],
+          )
+        ).rows;
+        return {
+          items: rows.slice(0, limit).map((row) => view(row, currentVersion)),
+          nextCursor: rows.length > limit ? rows[limit - 1].id : null,
+          currentVersion,
+        };
+      });
+    },
+    async read(documentId, proposalId) {
+      requireValue(uuid(proposalId), "INVALID_PROPOSAL_ID");
+      return publicContext(documentId, async (db, currentVersion) => {
+        const row = (
+          await db.query(
+            "SELECT * FROM dge_proposals.proposals WHERE document_id=$1 AND id=$2",
+            [documentId, proposalId],
+          )
+        ).rows[0];
+        requireValue(row, "PROPOSAL_NOT_FOUND", 404);
+        return view(row, currentVersion);
+      });
+    },
+  });
+}

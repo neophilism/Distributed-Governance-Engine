@@ -4,6 +4,7 @@ import {randomBytes,randomUUID} from 'node:crypto';
 import pg from 'pg';
 import {createDocumentStore} from '../server/document-store.mjs';
 import {createLegalDocument} from '../src/legal-structure.mjs';
+import {createProposalStore} from '../server/proposal-store.mjs';
 import {createIdentityStore,pgTransactions,applyIdentityMigrations,verifyIdentityRuntime,AccessError} from '../server/identity-store.mjs';
 
 // Intentionally limited to a disposable loopback test database. Never accepts a production URL.
@@ -59,6 +60,18 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const payload={document:{...structuredClone(current.document),revision:2},commandId:randomUUID(),expectedVersion:2};
     const duplicate=await Promise.all([documents.save(remainingOwner,tenantId,document.id,payload),documents.save(remainingOwner,tenantId,document.id,payload)]);
     assert.deepEqual(duplicate[0],duplicate[1]);assert.equal((await documents.history(document.id)).items.length,3);
+  });
+  await t.test('parallel proposal retries commit once and member removal fences later submissions',async()=>{
+    const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)}),proposals=createProposalStore({identity:store,transaction:pgTransactions(runtime)});
+    const document=structuredClone(createLegalDocument({id:randomUUID(),tenantId,title:'Proposal race'}));document.content[0].inlines=[{kind:'text',text:'Report annually.'}];
+    await documents.create(remainingOwner,tenantId,{document,commandId:randomUUID(),disclosure:'publish-all-revisions-v1'});
+    const input={baseVersion:1,selection:{blockId:document.content[0].id,start:7,end:15,quote:'annually'},replacement:'quarterly',rationale:'Keep reporting current.',commandId:randomUUID(),disclosure:'publish-proposal-v1'};
+    const duplicate=await Promise.all([proposals.create(remainingOwner,tenantId,document.id,input),proposals.create(remainingOwner,tenantId,document.id,input)]);assert.deepEqual(duplicate[0],duplicate[1]);
+    assert.equal((await owner.query('SELECT count(*)::int AS n FROM dge_proposals.anchor_outbox WHERE document_id=$1',[document.id])).rows[0].n,1);
+    const contributor=await user(),invitation=await store.invite(remainingOwner,tenantId,contributor.accountId,'participant');await store.acceptInvitation(contributor,tenantId,invitation.invitationToken);
+    const race=await Promise.allSettled([proposals.create(contributor,tenantId,document.id,{...input,commandId:randomUUID()}),store.changeMember(remainingOwner,tenantId,contributor.accountId,null)]);assert.equal(race[1].status,'fulfilled');
+    await assert.rejects(proposals.create(contributor,tenantId,document.id,{...input,commandId:randomUUID()}),AccessError);
+    assert.equal((await proposals.list(document.id)).items.length,race[0].status==='fulfilled'?2:1);
   });
   await t.test('row security denies an unscoped pooled connection and session revocation survives reuse',async()=>{
     assert.equal((await runtime.query('SELECT id FROM dge_identity.tenants')).rows.length,0);

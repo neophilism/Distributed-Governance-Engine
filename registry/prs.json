@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 9,
+  "roadmapVersion": 10,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T12:45:08.596Z",
+  "observedAt": "2026-10-17T12:59:00.173Z",
   "units": [
     {
       "id": "DCE-001",
@@ -978,16 +978,16 @@
       "id": 4900152189,
       "number": 8,
       "title": "DCE-005: Save public documents, preserve versions and freeze feedback sources (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/8",
       "createdAt": "2026-10-17T12:44:52Z",
-      "updatedAt": "2026-10-17T12:44:52Z",
-      "mergedAt": null,
-      "closedAt": null,
+      "updatedAt": "2026-10-17T12:49:13Z",
+      "mergedAt": "2026-10-17T12:49:13Z",
+      "closedAt": "2026-10-17T12:49:13Z",
       "draft": false,
-      "headSha": "0b10a1ee64bb7bd403dceda36a6921bc94528507",
+      "headSha": "7eb1a291ea2f543e512c1fcc4c7945988609bb5a",
       "baseRef": "main",
-      "mergeCommitSha": "eb60c9aa29c7b4703c3bfd14a20092b19f267184"
+      "mergeCommitSha": "807fb22aa54351526d0a762c825033044403fd9f"
     }
   ]
 }

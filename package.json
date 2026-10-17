@@ -30,7 +30,10 @@
     "./application": "./server/application.mjs",
     "./document-store": "./server/document-store.mjs",
     "./document-http": "./server/document-http.mjs",
-    "./document-session": "./editor/document-session.mjs"
+    "./document-session": "./editor/document-session.mjs",
+    "./text-selections": "./src/text-selections.mjs",
+    "./legal-proposals": "./src/legal-proposals.mjs",
+    "./proposal-store": "./server/proposal-store.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",

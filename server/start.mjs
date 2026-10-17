@@ -8,6 +8,8 @@ import {
   verifyIdentityRuntime,
 } from "./identity-store.mjs";
 import { discoverIdentityProvider, createOIDCLogin } from "./oidc-login.mjs";
+import { createProposalStore } from "./proposal-store.mjs";
+import { createProposalRoutes, proposalBodyLimit } from "./proposal-http.mjs";
 import { createAccountHandler } from "./account-http.mjs";
 import { createEngineApplication, createEngineServer } from "./application.mjs";
 
@@ -60,6 +62,12 @@ try {
       login,
       origin,
       extensions: [
+        createProposalRoutes({
+          proposals: createProposalStore({
+            identity: store,
+            transaction: pgTransactions(pool),
+          }),
+        }),
         createDocumentRoutes({
           documents: createDocumentStore({
             identity: store,
@@ -80,7 +88,8 @@ try {
     origin,
     key,
     cert,
-    bodyLimit: documentBodyLimit,
+    bodyLimit: (path) =>
+      Math.max(documentBodyLimit(path), proposalBodyLimit(path)),
   });
   const port = Number(process.env.PORT ?? 8443);
   if (!Number.isInteger(port) || port < 1 || port > 65535)

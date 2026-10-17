@@ -30,13 +30,34 @@ async function openCurrent(page) {
   await page.click(".document-list button");
   await page.waitForSelector(".save-controls");
 }
-async function prepend(page,text){
-  await page.click('.ProseMirror p');await page.keyboard.press('Home');await page.keyboard.type(text);
+async function prepend(page, text) {
+  await page.click(".ProseMirror p");
+  await page.keyboard.press("Home");
+  await page.keyboard.type(text);
 }
 async function saved(page, version) {
-  try { await page.waitForFunction(
-    (version) => document.querySelector(".save-controls")?.textContent.includes("Saved version " + version), {}, version,
-  ); } catch(cause) { console.log("Synthetic save diagnostic:",await page.evaluate(()=>({save:document.querySelector('.save-controls')?.textContent,status:document.querySelector('.status')?.textContent,editable:document.querySelector('.ProseMirror')?.getAttribute('contenteditable')}))); throw cause; }
+  try {
+    await page.waitForFunction(
+      (version) =>
+        document
+          .querySelector(".save-controls")
+          ?.textContent.includes("Saved version " + version),
+      {},
+      version,
+    );
+  } catch (cause) {
+    console.log(
+      "Synthetic save diagnostic:",
+      await page.evaluate(() => ({
+        save: document.querySelector(".save-controls")?.textContent,
+        status: document.querySelector(".status")?.textContent,
+        editable: document
+          .querySelector(".ProseMirror")
+          ?.getAttribute("contenteditable"),
+      })),
+    );
+    throw cause;
+  }
 }
 test(
   "Chrome publishes, saves, reopens and shares public legal text, preserves conflicting work and freezes public-input source",
@@ -200,6 +221,49 @@ test(
         ).status;
       }, id);
       assert.equal(forged, 409);
+      await owner.type(".search-tools label:first-child input", "annually");
+      await click(owner, "Find next");
+      await click(owner, "Suggest replacement");
+      await owner.waitForSelector(".proposal-composer");
+      await owner.type(".proposal-composer textarea", "quarterly");
+      await owner.type(
+        ".proposal-composer textarea[required]",
+        "More frequent reporting improves accountability.",
+      );
+      await owner.click('.proposal-composer input[type="checkbox"]');
+      await click(owner, "Publish suggestion");
+      await owner.waitForFunction(() =>
+        document
+          .querySelector(".proposal-detail")
+          ?.textContent.includes("quarterly"),
+      );
+      assert.equal(
+        await owner.$eval(".ProseMirror", (el) =>
+          el.textContent.includes("quarterly"),
+        ),
+        false,
+      );
+      await owner.screenshot({
+        path: "artifacts/proposal-panel-desktop.png",
+        fullPage: true,
+      });
+      await owner.setViewport({ width: 390, height: 844 });
+      await owner.screenshot({
+        path: "artifacts/proposal-panel-mobile.png",
+        fullPage: true,
+      });
+      assert.equal(
+        await owner.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+      await owner.setViewport({ width: 1440, height: 1050 });
+      await click(owner, "Close suggestions");
+      await owner.screenshot({
+        path: "artifacts/proposal-source.png",
+        fullPage: true,
+      });
       await reader.goto(link);
       await reader.waitForFunction(() =>
         document
@@ -216,6 +280,13 @@ test(
           "Keep this conflicting local wording.",
         ),
       );
+      await click(reader, "Suggested changes");
+      await reader.waitForFunction(() =>
+        document
+          .querySelector(".proposal-list")
+          ?.textContent.includes("quarterly"),
+      );
+      assert.equal(await reader.$(".proposal-composer"), null);
     } finally {
       await browser?.close();
       await fixture.close();

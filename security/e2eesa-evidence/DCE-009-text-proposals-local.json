@@ -1,0 +1,37 @@
+{
+  "unit": "DCE-009",
+  "scope": "partial exact-version public text replacement proposals and review panel",
+  "observedAt": "2026-10-17T12:59:00.174799+00:00",
+  "sourceFiles": {
+    "src/text-selections.mjs": "f3c3d3020564f768459b2526b98b046a3b4dac817385b8a9685cdc5bc5432447",
+    "src/legal-proposals.mjs": "28397d7ad433c1434df324d81cb5075b05d016560383af745d99bb88092e87e8",
+    "editor/model.mjs": "cf7d44501eb116afb240815acd8656941e359c009722e5f06105eaeb04c61f45",
+    "server/proposal-store.mjs": "b838bc703c29dd297e0bddd285a5fbe24f4aed6c88c4e49b91ea3a90375f6601",
+    "server/proposal-http.mjs": "941a4756582afdc55c8d8b6f3203e70d00170338a56790721d3939d2711e79a3",
+    "server/identity-store.mjs": "a748c46d59f81c0dbc12f791066015369a02e1ed6046b1f087f9a62b71eda2e1",
+    "migrations/005-text-proposals.sql": "b6be5011fb4e16b56cafdae5bfa420d158e3e83e8399ca145bbfc9529d9a2994",
+    "web/proposal-panel.jsx": "0722d33cb630ca06b0ff9c76c3fb580fac5f96810c5960944ed1c53061f8a8b4",
+    "web/app.jsx": "e504fef58368dd7eacfd7f6b409c28565c627e2540f906a5e5ba72351ec59d18",
+    "tests/text-proposals.test.mjs": "6034486432ea7e2902b58ad835afaa9ea4a4ed2fedd28ffcad6f0135b199cfe0",
+    "tests/proposal-store.test.mjs": "3897c85e5a21494214d924427e2a8e141a4629e5cb9eb919771263d14f8e512c",
+    "tests/documents.browser.mjs": "aa596f29e87e5bf79cbf4bed7f5a65b5a6d64d2a7d8a0a5dac561bba981d3a02",
+    "tests/identity-postgres.integration.mjs": "ad10122168124abc18ebdfe7486a3e259744f1a431cfaf46b5d97b5feb57eacb"
+  },
+  "localChecks": {
+    "tests": 138,
+    "generatedCases": 2000,
+    "browserJourneys": 2,
+    "browser": "HeadlessChrome/155.0.8059.84",
+    "browserCoverage": "real HTTPS app selection/publication on fixed source, preserved wording, public discovery; desktop/mobile inspected"
+  },
+  "postgresConcurrency": "required CI for duplicate proposal commands and member removal; not run locally",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Workspace contributors only; open-public participation policy pending",
+    "No private encryption, relative realtime anchors, proposal revisions or multi-clause packages",
+    "No structured points, ranking, decision ballots or adoption yet",
+    "Pending outbox is not blockchain evidence",
+    "Proposal drafts remain in client memory until publication"
+  ]
+}
