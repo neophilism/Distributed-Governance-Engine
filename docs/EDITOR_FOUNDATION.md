@@ -14,8 +14,7 @@ Build: `npm ci --ignore-scripts`, `npm run check`, `npm run build`. The output i
 
 The link and citation controls write schema v2 inline atoms rather than presentation-only HTML. Only canonical HTTPS targets without URL credentials are accepted; unsafe schemes fail without changing the document. Selected text becomes the link label, while citations require an explicit label. Authors can select an existing external atom to revise its canonical address, label and optional title, or remove the semantic link while preserving the visible label as ordinary text. Those transactions participate in local undo/redo and remain unavailable for immutable editions. Existing schema v1 documents require the explicit deterministic migration before these atoms can be saved.
 
-This is a contribution to DCE-005, not a claim that all editor acceptance criteria are complete. Remaining editor work includes richer citation metadata, explicit IME/browser/network-loss verification, the authenticated durable save/recovery adapter, measured rendering/accessibility checks and production integration. Human review remains deferred per the owner. Browser visual/screen-reader QA has not been completed in this environment. DOM integration tests verify mounting, text changes and read-only enforcement without claiming actual browser layout validation.
-
+This is a contribution to DCE-005, not a claim that all editor acceptance criteria are complete. Remaining editor work includes richer citation metadata, broader operating-system IME and accessibility coverage, private encrypted recovery, measured rendering checks and production integration. Human review remains deferred per the owner. Browser visual/screen-reader QA has not been completed in this environment. DOM integration tests verify mounting, text changes and read-only enforcement without claiming actual browser layout validation.
 
 ## Real-browser input and interrupted-save acceptance
 
