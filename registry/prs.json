@@ -4,13 +4,15 @@
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T00:42:26Z",
+  "observedAt": "2026-10-17T02:51:57.629Z",
   "units": [
     {
       "id": "DCE-001",
       "title": "Foundation and deterministic domain contracts",
       "origin": "original",
-      "prs": [],
+      "prs": [
+        1
+      ],
       "dependsOn": [],
       "externalDependencies": [],
       "externalPrerequisites": [],
@@ -22,7 +24,7 @@
         "Run registry contract tests, adversarial domain tests, deterministic property campaigns and source-bound validation. No remote or deployment claim."
       ],
       "specification": "docs/prs/DCE-001.md",
-      "implementationStatus": "foundation-partial",
+      "implementationStatus": "implemented",
       "operationalAcceptance": "unverified"
     },
     {
@@ -851,5 +853,18 @@
       "operationalAcceptance": "unverified"
     }
   ],
-  "pullRequests": []
+  "pullRequests": [
+    {
+      "id": 4896649377,
+      "number": 1,
+      "title": "DCE-001: Establish the shared governance engine and Quill product foundation",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/1",
+      "createdAt": "2026-10-17T02:49:38Z",
+      "updatedAt": "2026-10-17T02:49:38Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false
+    }
+  ]
 }

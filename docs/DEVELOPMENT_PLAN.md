@@ -2,7 +2,7 @@
 
 Approved task scope: the owner's October 16, 2026 request for the shared document engine and two thin applications. Maintainer-authored decomposition version 1. This is a development plan, not a claim that the owner separately reviewed each PR.
 
-The only machine-readable plan is registry/prs.json (39 units). Detailed implementation/acceptance/test/migration specs are in docs/prs/. Unit numbers are stable IDs, never GitHub PR numbers. No PR has been opened or merged. Do not equate a foundation commit with accepted unit completion.
+The only machine-readable plan is registry/prs.json (39 units). Detailed implementation/acceptance/test/migration specs are in docs/prs/. Unit numbers are stable IDs, never GitHub PR numbers. The foundation is mapped to actual GitHub PR #1; live GitHub owns its current state. Do not equate a foundation commit with accepted unit completion.
 
 | Unit | Planned PR | Dependencies |
 | --- | --- | --- |
