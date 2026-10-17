@@ -120,7 +120,7 @@ function externalInlineSelection(state) {
 export function selectedExternalInline(state) {
  const selected=externalInlineSelection(state);if(!selected)return null;
  const {targetUrl,label,title,citationMetadata}=selected.node.attrs;
- return {kind:selected.node.type.name==='external_link'?'link':'citation',targetUrl,label,...(title===null?{}:{title}),...(citationMetadata===null?{}:{citationMetadata:structuredClone(citationMetadata)})};
+ return {kind:selected.node.type.name==='external_link'?'link':'citation',targetUrl,label,...(title===null?{}:{title}),...(citationMetadata==null?{}:{citationMetadata:structuredClone(citationMetadata)})};
 }
 export function updateExternalInline({targetUrl,label,title,citationMetadata}={}) {return (state,dispatch)=>{
  const selected=externalInlineSelection(state);if(!selected)return false;
