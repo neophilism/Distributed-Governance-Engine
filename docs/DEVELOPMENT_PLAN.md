@@ -56,6 +56,8 @@ DCE-002 has a partial server implementation for OIDC login, persisted sessions, 
 
 The recovery contribution adds rotating, single-use recovery codes, atomic session invalidation, a short read-only recovery session and minimal security-event evidence. It deliberately does not treat recovery as recent OIDC authentication or encrypted-device enrollment. Full provider-loss restoration, passkeys/device assurance and production acceptance remain planned.
 
+The passkey/device-assurance contribution adds verifier-backed, session-bound WebAuthn ceremony state, credential/counter persistence, fresh local step-up and separately revocable device public-key thumbprints. It deliberately does not ship custom attestation cryptography, content keys or a private-workspace authorization claim. Real browser/authenticator interoperability, attestation policy, membership rekeying and production acceptance remain planned.
+
 DCE-005 also includes literal body-text find/replace, bounded replace-all with one-step undo, Unicode-aware positions, safe failures and readonly search. Inline links/citations, authenticated save and real-browser/IME/network/accessibility acceptance remain unfinished. Local DOM interaction tests do not establish real-browser layout or screen-reader behavior.
 
 The DCE-002 authentication-time follow-up binds privileged-action freshness to verified provider authentication time, preserves migration 001, and adds ordered migration 002. Legacy sessions without this evidence require a fresh login. Tests cover time-window extension, backward-clock handling and preservation of old account/session records during upgrade.
