@@ -57,7 +57,7 @@ function validateCitationMetadata(value) {
 }
 export function normalizeCitationMetadata(value) {
  if(value===undefined||value===null)return null;
- safeRecord(value);const next={};
+ fields(value,['publisher','publishedOn','pinpoint','accessedOn']);const next={};
  for(const key of ['publisher','publishedOn','pinpoint','accessedOn'])if(typeof value[key]==='string'&&value[key].trim())next[key]=value[key].trim();
  validateCitationMetadata(next);return freeze(next);
 }
@@ -164,7 +164,7 @@ export function legalOutline(document) {
 }
 export function legalPlainText(document) {
  const doc=validateLegalDocument(document),labels=new Map(legalOutline(doc).map(x=>[x.id,x.label]));
- const inline=r=>{if(r.kind==='text')return r.text;if(!['link','citation'].includes(r.kind))return r.label??labels.get(r.targetId)??'['+r.targetId+']';const metadata=r.citationMetadata?Object.values(r.citationMetadata).join('; '):'';return r.label+' <'+r.targetUrl+'>'+(metadata?' ['+metadata+']':'');};
+ const inline=r=>{if(r.kind==='text')return r.text;if(!['link','citation'].includes(r.kind))return r.label??labels.get(r.targetId)??'['+r.targetId+']';const metadata=r.citationMetadata?['publisher','publishedOn','pinpoint','accessedOn'].filter(key=>r.citationMetadata[key]!==undefined).map(key=>r.citationMetadata[key]).join('; '):'';return r.label+' <'+r.targetUrl+'>'+(metadata?' ['+metadata+']':'');};
  function render(node){if(node.inlines)return (node.term?node.term+'—':'')+node.inlines.map(inline).join('');return (node.title?(labels.get(node.id)??'EXHIBIT')+' '+node.title+'\n':'')+node.children.map(render).join(node.kind==='table-row'?'\t':'\n');}
  return doc.content.map(render).join('\n\n');
 }
