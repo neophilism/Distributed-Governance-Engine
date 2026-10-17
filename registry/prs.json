@@ -110,7 +110,7 @@
         "Keyboard/editor component tests, paste sanitization, XSS corpus, IME, Unicode and lost-network recovery browser tests."
       ],
       "specification": "docs/prs/DCE-005.md",
-      "implementationStatus": "planned",
+      "implementationStatus": "partial",
       "operationalAcceptance": "unverified"
     },
     {

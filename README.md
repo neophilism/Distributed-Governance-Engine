@@ -10,13 +10,15 @@ Reusable legal-document drafting, proposal, deliberation and governance engine.
 - [Operations and credential requirements](docs/OPERATIONS.md)
 - [Repository agent instructions](AGENTS.md)
 
-Requires Node 24.19.0 (tested). No application dependencies or install step are needed for the foundation.
+Requires Node 24.19.0 (tested). Install the exact lockfile before running the editor and tests.
 
 ```sh
+npm ci --ignore-scripts
 npm run check
-npm run demo
+npm run build
+npm run preview
 ```
 
-The demo serves http://127.0.0.1:4173 and demonstrates clause selection, a proposal/discussion drawer and anchored callout balloons. It has in-memory sample data, loses changes on reload and performs no real voting or legal signing. It is not the planned rich editor.
+The shared React/ProseMirror editor preview serves http://127.0.0.1:4173 and demonstrates the CivicQuill/CharterQuill family, real drafting/formatting, legal sections, tables, outline, working-copy exports and anchored walkthroughs. Changes stay in memory unless you opt into public-sample device recovery. Confidential recovery, authentication, durable server save and governed collaboration remain future work. The earlier conceptual walkthrough remains available through npm run demo.
 
 Actual PR mappings are recorded in registry/prs.json; bootstrap commits alone do not establish product acceptance. Follow the dependency-ready PR specifications to implement the full product. Human review is the final deployed handoff; actual failed technical gates remain blockers.
