@@ -26,7 +26,7 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
   const flags=(await runtime.query('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0];
   assert.deepEqual(flags,{rolsuper:false,rolbypassrls:false});
   const store=createIdentityStore({transaction:pgTransactions(runtime),sessionKey:randomBytes(32),stateKey:randomBytes(32),origin:'https://quill.example'});
-  const user=async()=>({...await store.establishSession({issuer:'https://test-provider.example',subject:randomUUID(),authenticatedAt:Date.now()}),origin:'https://quill.example'});
+  const user=async()=>({...await store.establishSession({issuer:'https://test-provider.example',subject:randomUUID(),authenticatedAt:Date.now(),authenticationMethods:['pwd','mfa']}),origin:'https://quill.example'});
   const a=await user(),b=await user(),c=await user(),{tenantId}=await store.createTenant(a);let remainingOwner=a;
   const invitation=await store.invite(a,tenantId,b.accountId,'editor');
   await t.test('a one-use invitation has only one successful concurrent acceptance',async()=>{

@@ -4,7 +4,7 @@
   "roadmapVersion": 13,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T21:15:00Z",
+  "observedAt": "2026-10-17T21:28:15Z",
   "units": [
     {
       "id": "DCE-001",
@@ -51,7 +51,8 @@
         4,
         6,
         7,
-        11
+        11,
+        12
       ]
     },
     {
@@ -1033,16 +1034,31 @@
       "id": 4903967111,
       "number": 11,
       "title": "DCE-002: Add restricted account recovery (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/11",
       "createdAt": "2026-10-17T21:11:57Z",
-      "updatedAt": "2026-10-17T21:14:04Z",
+      "updatedAt": "2026-10-17T21:16:38Z",
+      "mergedAt": "2026-10-17T21:16:38Z",
+      "closedAt": "2026-10-17T21:16:38Z",
+      "draft": false,
+      "headSha": "448f05d51ea3d79729223592146ae28ca4a446e3",
+      "baseRef": "main",
+      "mergeCommitSha": "fc3f5528862705c91a42e5824a56a92eb040ba0c"
+    },
+    {
+      "id": 4904075307,
+      "number": 12,
+      "title": "DCE-002: Require provider assurance for recovery issuance (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/12",
+      "createdAt": "2026-10-17T21:28:15Z",
+      "updatedAt": "2026-10-17T21:28:15Z",
       "mergedAt": null,
       "closedAt": null,
-      "draft": false,
-      "headSha": "0153492a0fb29aa1f3a57ec4044d4e71db42336f",
+      "draft": true,
+      "headSha": "95a9e9c5fd4fe559aa5841699d8c45f3e13173d5",
       "baseRef": "main",
-      "mergeCommitSha": "fe6d532794c2ade2ebcf0a15cea15c5945aa934c"
+      "mergeCommitSha": "133d9be26fb4d083ec4a26eb9dc0bbc971137c7f"
     }
   ]
 }

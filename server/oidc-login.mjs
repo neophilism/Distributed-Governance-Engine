@@ -30,7 +30,9 @@ export function createOIDCLogin({store,configuration,redirectUri}) {
       const tokens=await oidc.authorizationCodeGrant(configuration,callback,{pkceCodeVerifier:pending.verifier,expectedState:state,expectedNonce:pending.nonce,idTokenExpected:true,maxAge:300});
       const claims=tokens.claims();
       if(!claims||claims.iss!==issuer||typeof claims.sub!=='string')throw new AccessError();
-      const session=await store.establishSession({issuer,subject:claims.sub,authenticatedAt:claims.auth_time*1000});
+      const authenticationMethods=claims.amr??[];
+      if(!Array.isArray(authenticationMethods))throw new AccessError();
+      const session=await store.establishSession({issuer,subject:claims.sub,authenticatedAt:claims.auth_time*1000,authenticationMethods});
       return {...session,cookie:sessionCookie(session.sessionToken),clearLoginCookie:'__Host-dge_login=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'};
     }
   });

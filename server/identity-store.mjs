@@ -11,7 +11,7 @@ const isToken=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value);
 const role=value=>['owner','admin','editor','participant','viewer'].includes(value);
 const date=value=>new Date(value).getTime();
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
@@ -65,16 +65,18 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   const digest=(purpose,value)=>createHmac('sha256',sessionKey).update(purpose+'\0'+value).digest('hex');
   const now=()=>{const n=clock();if(!Number.isSafeInteger(n)||n<0)throw Error('Invalid server clock');return new Date(n);};
   const checkWrite=credentials=>deny(credentials?.origin===origin&&isToken(credentials.csrfToken));
-  async function session(db,credentials,write=false,recent=false,allowRecoveryWrite=false) {
+  async function session(db,credentials,write=false,recent=false,allowRecoveryWrite=false,requiredAssurance='primary') {
     deny(isToken(credentials?.sessionToken),'AUTHENTICATION_REQUIRED');
     if(write)checkWrite(credentials);
-    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at,s.expires_at,s.authentication_method FROM dge_identity.sessions s
+    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at,s.expires_at,s.authentication_method,s.authentication_assurance FROM dge_identity.sessions s
       JOIN dge_identity.accounts a ON a.id=s.account_id WHERE s.token_digest=$1 AND s.revoked_at IS NULL
       AND s.expires_at>$2 AND s.created_at<=$2 AND s.authenticated_at IS NOT NULL
       AND a.status='active' AND s.auth_epoch=a.auth_epoch FOR SHARE OF a,s`,[digest('session',credentials.sessionToken),now()]);
     const row=result.rows[0];deny(row,'AUTHENTICATION_REQUIRED');
     if(write)deny(timingSafeEqual(Buffer.from(row.csrf_digest),Buffer.from(digest('csrf',credentials.csrfToken))));
     if(row.authentication_method!=='oidc'&&(recent||(write&&!allowRecoveryWrite)))deny(false,'RECOVERY_SESSION_RESTRICTED');
+    const assurances=['primary','multifactor','hardware-bound'];
+    deny(assurances.indexOf(row.authentication_assurance)>=assurances.indexOf(requiredAssurance),'STEP_UP_REQUIRED');
     if(recent)deny(date(row.authenticated_at)>now().getTime()-300000,'REAUTHENTICATION_REQUIRED');
     return row;
   }
@@ -93,8 +95,10 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   const manage=actor=>deny(['owner','admin'].includes(actor.role));
   return Object.freeze({
     // Call only with claims authenticated by the configured OIDC adapter. Never link by email.
-    establishSession:({issuer,subject,authenticatedAt})=>transaction(async db=>{
+    establishSession:({issuer,subject,authenticatedAt,authenticationMethods=[]})=>transaction(async db=>{
       const issuedAt=now();
+      deny(Array.isArray(authenticationMethods)&&authenticationMethods.length<=16&&authenticationMethods.every(value=>typeof value==='string'&&value.length>0&&value.length<=64&&!value.includes('\0')));
+      const authenticationAssurance=authenticationMethods.includes('hwk')?'hardware-bound':authenticationMethods.includes('mfa')?'multifactor':'primary';
       deny(Number.isSafeInteger(authenticatedAt)&&authenticatedAt>=issuedAt.getTime()-300000&&authenticatedAt<=issuedAt.getTime()+30000);
       const uri=new URL(issuer);
       deny(uri.protocol==='https:'&&!uri.username&&!uri.password&&!uri.hash&&!uri.search&&issuer.length<=2048);
@@ -106,13 +110,13 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
         SELECT token_digest FROM dge_identity.sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
         ORDER BY created_at DESC,token_digest DESC OFFSET $3)`,[account.rows[0].id,issuedAt,maxSessions-1]);
       const sessionToken=token(),csrfToken=token(),expiresAt=new Date(now().getTime()+sessionSeconds*1000);
-      await db.query('INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at,authenticated_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[digest('session',sessionToken),account.rows[0].id,account.rows[0].auth_epoch,digest('csrf',csrfToken),issuedAt,expiresAt,new Date(authenticatedAt)]);
-      return {accountId:account.rows[0].id,sessionToken,csrfToken,expiresAt:expiresAt.toISOString()};
+      await db.query('INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at,authenticated_at,authentication_assurance) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[digest('session',sessionToken),account.rows[0].id,account.rows[0].auth_epoch,digest('csrf',csrfToken),issuedAt,expiresAt,new Date(authenticatedAt),authenticationAssurance]);
+      return {accountId:account.rows[0].id,sessionToken,csrfToken,expiresAt:expiresAt.toISOString(),authenticationAssurance};
     }),
     account:sessionToken=>transaction(async db=>({accountId:(await session(db,{sessionToken})).id})),
     sessionInfo:sessionToken=>transaction(async db=>{
       const actor=await session(db,{sessionToken});
-      return {accountId:actor.id,expiresAt:new Date(actor.expires_at).toISOString(),authenticatedAt:new Date(actor.authenticated_at).toISOString(),authenticationMethod:actor.authentication_method,recoveryRestricted:actor.authentication_method==='recovery'};
+      return {accountId:actor.id,expiresAt:new Date(actor.expires_at).toISOString(),authenticatedAt:new Date(actor.authenticated_at).toISOString(),authenticationMethod:actor.authentication_method,authenticationAssurance:actor.authentication_assurance,recoveryRestricted:actor.authentication_method==='recovery'};
     }),
     organizations:(credentials,{after=null,limit=100}={})=>transaction(async db=>{
       deny((after===null||uuid(after))&&Number.isSafeInteger(limit)&&limit>=1&&limit<=200);
@@ -122,7 +126,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].tenantId:null};
     }),
     issueRecoveryCodes:credentials=>transaction(async db=>{
-      const actor=await session(db,credentials,true,true),createdAt=now(),expiresAt=new Date(createdAt.getTime()+30*86400000);
+      const actor=await session(db,credentials,true,true,false,'multifactor'),createdAt=now(),expiresAt=new Date(createdAt.getTime()+30*86400000);
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['recovery-codes:'+actor.id]);
       await db.query('UPDATE dge_identity.recovery_codes SET revoked_at=$2 WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[actor.id,createdAt]);
       const recoveryCodes=[];

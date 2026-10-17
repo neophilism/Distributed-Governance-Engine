@@ -13,7 +13,7 @@ const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time});
 before(async()=>{db=await PGlite.create();assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:true});assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:false});});
 after(async()=>{await db?.close();});
 beforeEach(async()=>{await db.exec('TRUNCATE dge_identity.accounts,dge_identity.tenants,dge_identity.login_challenges CASCADE');time=Date.now();store=createIdentityStore(options());});
-const account=async(subject='owner',issuer='https://identity.example')=>({...await store.establishSession({issuer,subject,authenticatedAt:time}),origin});
+const account=async(subject='owner',issuer='https://identity.example')=>({...await store.establishSession({issuer,subject,authenticatedAt:time,authenticationMethods:['pwd','mfa']}),origin});
 const denied=promise=>assert.rejects(promise,error=>error instanceof AccessError);
 const join=async(owner,tenantId,user,role='editor')=>{const {invitationToken}=await store.invite(owner,tenantId,user.accountId,role);await store.acceptInvitation(user,tenantId,invitationToken);};
 
@@ -84,6 +84,15 @@ test('ordinary logout, all-session revocation, suspension and expiry are enforce
   const e=await account();await db.query("UPDATE dge_identity.accounts SET status='suspended' WHERE id=$1",[e.accountId]);
   await denied(store.account(e.sessionToken));await denied(account());
 });
+test('provider assurance is reduced to bounded levels and gates recovery issuance',async()=>{
+  const primary={...await store.establishSession({issuer:'https://identity.example',subject:'primary-only',authenticatedAt:time,authenticationMethods:['pwd']}),origin};
+  assert.equal((await store.sessionInfo(primary.sessionToken)).authenticationAssurance,'primary');
+  await denied(store.issueRecoveryCodes(primary));
+  const hardware={...await store.establishSession({issuer:'https://identity.example',subject:'hardware',authenticatedAt:time,authenticationMethods:['pwd','mfa','hwk']}),origin};
+  assert.equal((await store.sessionInfo(hardware.sessionToken)).authenticationAssurance,'hardware-bound');
+  assert.equal((await store.issueRecoveryCodes(hardware)).recoveryCodes.length,8);
+  for(const invalid of [null,[''],['x'.repeat(65)],Array(17).fill('mfa')])await denied(store.establishSession({issuer:'https://identity.example',subject:'invalid-assurance',authenticatedAt:time,authenticationMethods:invalid}));
+});
 test('single-use recovery codes revoke sessions and create a read-only recovery session',async()=>{
   const primary=await account(),second=await account();
   const issued=await store.issueRecoveryCodes(primary);
@@ -93,7 +102,7 @@ test('single-use recovery codes revoke sessions and create a read-only recovery 
   const recovery=await store.recoverAccount(primary.accountId,issued.recoveryCodes[0]);
   await denied(store.account(primary.sessionToken));await denied(store.account(second.sessionToken));
   assert.deepEqual(await store.sessionInfo(recovery.sessionToken),{
-    accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',recoveryRestricted:true
+    accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',authenticationAssurance:'primary',recoveryRestricted:true
   });
   await denied(store.createTenant({...recovery,origin}));
   await denied(store.withTenant({...recovery,origin},randomUUID(),{},async()=>true));
@@ -184,7 +193,7 @@ function provider(scenario={}) {
     if(String(url)===issuer+'/jwks')return Response.json({keys:[{...keys.publicKey.export({format:'jwk'}),kid:'fixture-key',alg:'RS256',use:'sig'}]});
     assert.equal(String(url),issuer+'/token');const form=new URLSearchParams(init.body);
     assert.equal(form.get('code'),'test-code');assert.equal(createHash('sha256').update(form.get('code_verifier')).digest('base64url'),authorization.searchParams.get('code_challenge'));
-    const now=Math.floor(Date.now()/1000),payload={iss:issuer,sub:'verified-user',aud:clientId,iat:now,exp:now+300,auth_time:now,nonce:authorization.searchParams.get('nonce'),...scenario.claims};
+    const now=Math.floor(Date.now()/1000),payload={iss:issuer,sub:'verified-user',aud:clientId,iat:now,exp:now+300,auth_time:now,nonce:authorization.searchParams.get('nonce'),amr:['pwd','mfa'],...scenario.claims};
     const unsigned=Buffer.from(JSON.stringify({alg:'RS256',kid:'fixture-key'})).toString('base64url')+'.'+Buffer.from(JSON.stringify(payload)).toString('base64url');
     const signature=sign('RSA-SHA256',Buffer.from(unsigned),keys.privateKey).toString('base64url');
     return Response.json({access_token:'unused-fixture-access-token',token_type:'Bearer',expires_in:300,id_token:unsigned+'.'+(scenario.badSignature?'invalid-signature':signature)});
