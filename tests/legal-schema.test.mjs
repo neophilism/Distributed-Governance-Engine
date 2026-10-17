@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,migrateLegacyRevision,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText} from '../src/legal-schema.mjs';
+import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,migrateLegacyRevision,migrateLegalDocumentV1,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText} from '../src/legal-schema.mjs';
 const paragraph=(id,text)=>({kind:'paragraph',id,inlines:[{kind:'text',text}]});
 const fixture=()=>({...structuredClone(createLegalDocument({id:'doc',tenantId:'org',title:'A reporting act'})),content:[{kind:'section',id:'s1',title:'Reporting',children:[paragraph('p1','The agency shall report annually.'),{kind:'section',id:'s1a',title:'Publication',children:[paragraph('p2','Reports shall be public.')]}]},{kind:'section',id:'s2',title:'Effective date',children:[{kind:'paragraph',id:'p3',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'s1a'}]}]}]});
 test('valid legal data is detached, deeply frozen and identified independently from numbering',()=>{const input=fixture(),doc=validateLegalDocument(input);assert(Object.isFrozen(doc.content[0].children));input.metadata.title='changed';assert.equal(doc.metadata.title,'A reporting act');});
 test('unsupported schema, unsafe fields, duplicate IDs and illegal child types fail',()=>{
- for(const mutate of [d=>d.schemaVersion=2,d=>d.extra=true,d=>d.content[1].id='s1',d=>d.content[0].children[0].kind='table-row']){const d=fixture();mutate(d);assert.throws(()=>validateLegalDocument(d));}
+ for(const mutate of [d=>d.schemaVersion=3,d=>d.extra=true,d=>d.content[1].id='s1',d=>d.content[0].children[0].kind='table-row']){const d=fixture();mutate(d);assert.throws(()=>validateLegalDocument(d));}
  const d=fixture();Object.defineProperty(d,'revision',{get(){throw Error('Getter must not run');},enumerable:true});assert.throws(()=>validateLegalDocument(d),/unsafe/);
+});
+test('schema v2 stores canonical HTTPS links and citations while v1 remains closed',()=>{
+ const d=fixture();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'annual report'},{kind:'text',text:' '},{kind:'citation',targetUrl:'https://law.example/statute#s1',label:'12 U.S.C. 34',title:'Source'}];
+ assert.match(legalPlainText(validateLegalDocument(d)),/annual report <https:\/\/example.gov\/report>/);
+ assert.deepEqual(documentIssues(d),[]);
+ for(const targetUrl of ['javascript:alert(1)','http://example.gov','https://user:secret@example.gov/']){const x=structuredClone(d);x.content[0].children[0].inlines[0].targetUrl=targetUrl;assert.throws(()=>validateLegalDocument(x),/URL|HTTPS/);}
+ const old=fixture();old.schemaVersion=1;const upgraded=migrateLegalDocumentV1(old);assert.equal(upgraded.schemaVersion,2);assert.equal(upgraded.schemaMigration.sourceDigest,legalDocumentDigest(old));assert.deepEqual(upgraded.content,old.content);assert.throws(()=>migrateLegalDocumentV1(upgraded));
+ const forbidden=structuredClone(old);forbidden.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/',label:'source'}];assert.throws(()=>validateLegalDocument(forbidden),/inline kind/);
 });
 test('markup is stored as text and unsupported marks cannot activate HTML',()=>{
  const d=fixture();d.content[0].children[0].inlines[0].text='<script>alert(1)</script>';assert.match(legalPlainText(d),/<script>/);

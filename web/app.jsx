@@ -6,6 +6,8 @@ import {
   appendSection,
   appendTable,
   canDirectlyEdit,
+  insertExternalLink,
+  insertCitation,
 } from "../editor/model.mjs";
 import {
   createLegalDocument,
@@ -420,6 +422,13 @@ function App() {
         "Place the cursor in a suitable paragraph to use this control.",
       );
   }
+  function addExternal(kind) {
+    const targetUrl = window.prompt(kind === "link" ? "HTTPS link address" : "HTTPS citation source");
+    if (targetUrl === null) return;
+    const label = kind === "citation" ? window.prompt("Citation label") : undefined;
+    if (kind === "citation" && label === null) return;
+    run(kind === "link" ? insertExternalLink(targetUrl) : insertCitation(targetUrl, label));
+  }
   function previewInput() {
     setDoc(publicInputEdition(controller.current.getDocument()));
     setGeneration((x) => x + 1);
@@ -642,6 +651,12 @@ function App() {
                 {label}
               </button>
             ))}
+            <button disabled={!editable} onMouseDown={(e) => e.preventDefault()} onClick={() => addExternal("link")}>
+              Link
+            </button>
+            <button disabled={!editable} onMouseDown={(e) => e.preventDefault()} onClick={() => addExternal("citation")}>
+              Citation
+            </button>
             <button disabled={!editable} onClick={() => run(appendTable())}>
               Table
             </button>

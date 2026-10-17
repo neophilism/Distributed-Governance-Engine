@@ -5,7 +5,7 @@ import {baseKeymap,toggleMark} from 'prosemirror-commands';
 import {history,undo,redo} from 'prosemirror-history';
 import {keymap} from 'prosemirror-keymap';
 import {wrapInList,splitListItem} from 'prosemirror-schema-list';
-import {validateLegalDocument,legalOutline} from '../src/legal-structure.mjs';
+import {validateLegalDocument,legalOutline,normalizeExternalUrl} from '../src/legal-structure.mjs';
 import {findNextText,findTextMatches} from './search.mjs';
 import {validateTextSelection} from '../src/text-selections.mjs';
 
@@ -26,7 +26,9 @@ export const editorSchema=new Schema({
   exhibit:{group:'block',content:'(section|paragraph|legal_list|table|definition)+',attrs:{...attrs,title:{default:'Exhibit'}},defining:true,toDOM:node=>['section',blockAttrs(node),['h2',{contenteditable:'false'},node.attrs.title],['div',0]]},
   footnote:{group:'block',content:'inline*',attrs,toDOM:node=>['aside',{...blockAttrs(node),'data-footnote':'true'},0]},
   reference:{inline:true,group:'inline',atom:true,attrs:{targetId:{},label:{default:null}},toDOM:node=>['span',{'data-reference':node.attrs.targetId},node.attrs.label??'['+node.attrs.targetId+']']},
-  footnote_reference:{inline:true,group:'inline',atom:true,attrs:{targetId:{},label:{default:null}},toDOM:node=>['sup',{'data-footnote-reference':node.attrs.targetId},node.attrs.label??'['+node.attrs.targetId+']']}
+  footnote_reference:{inline:true,group:'inline',atom:true,attrs:{targetId:{},label:{default:null}},toDOM:node=>['sup',{'data-footnote-reference':node.attrs.targetId},node.attrs.label??'['+node.attrs.targetId+']']},
+  external_link:{inline:true,group:'inline',atom:true,attrs:{targetUrl:{},label:{},title:{default:null}},toDOM:node=>['a',{href:node.attrs.targetUrl,title:node.attrs.title,rel:'noreferrer noopener'},node.attrs.label]},
+  citation:{inline:true,group:'inline',atom:true,attrs:{targetUrl:{},label:{},title:{default:null}},toDOM:node=>['cite',['a',{href:node.attrs.targetUrl,title:node.attrs.title,rel:'noreferrer noopener'},node.attrs.label]]}
  },
  marks:{
   bold:{parseDOM:[{tag:'strong'},{tag:'b'}],toDOM:()=>['strong',0]},
@@ -35,7 +37,7 @@ export const editorSchema=new Schema({
   strike:{parseDOM:[{tag:'s'},{tag:'del'},{tag:'strike'}],toDOM:()=>['s',0]}
  }
 });
-const types={'list':'legal_list','list-item':'list_item','table-row':'table_row','table-cell':'table_cell','footnote-reference':'footnote_reference'};
+const types={'list':'legal_list','list-item':'list_item','table-row':'table_row','table-cell':'table_cell','footnote-reference':'footnote_reference',link:'external_link'};
 const kinds=Object.fromEntries(Object.entries(types).map(([a,b])=>[b,a]));
 const newId=()=> 'b-'+globalThis.crypto.randomUUID();
 function toNode(node,labels) {
@@ -43,14 +45,15 @@ function toNode(node,labels) {
  const {kind,inlines,children,...attributes}=node;
  if(kind==='section')attributes.numberLabel=labels.get(node.id)??'';
  if(attributes.label===undefined&&['reference','footnote-reference'].includes(kind))attributes.label=null;
+ if(attributes.title===undefined&&['link','citation'].includes(kind))attributes.title=null;
  return editorSchema.nodes[types[kind]??kind].createChecked(attributes,(inlines??children??[]).map(child=>toNode(child,labels)).filter(Boolean));
 }
 function fromNode(node) {
  if(node.isText)return {kind:'text',text:node.text,...(node.marks.length?{marks:node.marks.map(m=>m.type.name)}:{})};
- const kind=kinds[node.type.name]??node.type.name,attributes={...node.attrs};if(attributes.label===null)delete attributes.label;
+ const kind=kinds[node.type.name]??node.type.name,attributes={...node.attrs};if(attributes.label===null)delete attributes.label;if(attributes.title===null)delete attributes.title;
  delete attributes.numberLabel;
  const base={kind,...attributes};
- if(['reference','footnote-reference'].includes(kind))return base;
+ if(['reference','footnote-reference','link','citation'].includes(kind))return base;
  const children=[];node.forEach(child=>children.push(fromNode(child)));
  return {...base,...(['paragraph','definition','footnote'].includes(kind)?{inlines:children}:{children})};
 }
@@ -100,6 +103,14 @@ export function mountLegalEditor(element,initial,{onChange=()=>{},onError=()=>{}
  },destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(readOnly||!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
 }
 export const commands={undo,redo,bold:toggleMark(editorSchema.marks.bold),italic:toggleMark(editorSchema.marks.italic),underline:toggleMark(editorSchema.marks.underline),strike:toggleMark(editorSchema.marks.strike),numberedList:wrapInList(editorSchema.nodes.legal_list,{style:'decimal'}),bulletList:wrapInList(editorSchema.nodes.legal_list,{style:'bullet'})};
+function insertExternalInline(kind,targetUrl,label,title) {return (state,dispatch)=>{
+ let url;try{url=normalizeExternalUrl(targetUrl);}catch{return false;}
+ const selected=state.selection.empty?'':state.doc.textBetween(state.selection.from,state.selection.to,'','');const text=(label??selected).trim();
+ if(!text||text.length>1000||title!==undefined&&(typeof title!=='string'||title.length>1000)||!state.selection.$from.sameParent(state.selection.$to)||!state.selection.$from.parent.isTextblock)return false;
+ if(dispatch){const node=editorSchema.nodes[kind].createChecked({targetUrl:url,label:text,title:title??null});dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());}return true;
+};}
+export const insertExternalLink=(targetUrl,label,title)=>insertExternalInline('external_link',targetUrl,label,title);
+export const insertCitation=(targetUrl,label,title)=>insertExternalInline('citation',targetUrl,label,title);
 export function appendSection(title) {return (state,dispatch)=>{
  if(typeof title!=='string'||!title.trim()||title.length>200)return false;
  if(dispatch){const section=editorSchema.nodes.section.createChecked({id:newId(),title:title.trim()},editorSchema.nodes.paragraph.create({id:newId()}));const pos=state.doc.content.size;const tr=state.tr.insert(pos,section);tr.setSelection(TextSelection.near(tr.doc.resolve(pos+2)));dispatch(tr.scrollIntoView());}return true;
