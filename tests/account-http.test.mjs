@@ -65,6 +65,7 @@ const user = async (subject) => ({
     issuer: "https://provider.example",
     subject,
     authenticatedAt: clock,
+    authenticationMethods: ['pwd', 'mfa'],
   })),
   origin,
 });
