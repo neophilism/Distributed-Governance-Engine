@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 5,
+  "roadmapVersion": 6,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T05:43:54.142Z",
+  "observedAt": "2026-10-17T05:47:53.314Z",
   "units": [
     {
       "id": "DCE-001",
@@ -48,7 +48,8 @@
       "implementationStatus": "partial",
       "operationalAcceptance": "unverified",
       "contributingPrs": [
-        4
+        4,
+        6
       ]
     },
     {
@@ -927,16 +928,31 @@
       "id": 4897673105,
       "number": 5,
       "title": "DCE-005: Add bounded body-text find and replace (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/5",
       "createdAt": "2026-10-17T05:42:38Z",
-      "updatedAt": "2026-10-17T05:42:38Z",
+      "updatedAt": "2026-10-17T05:46:06Z",
+      "mergedAt": "2026-10-17T05:46:06Z",
+      "closedAt": "2026-10-17T05:46:06Z",
+      "draft": false,
+      "headSha": "124753895f4bf516f14931a3d5c275a4d4151aa1",
+      "baseRef": "main",
+      "mergeCommitSha": "80bb56f1a9f85ee93afc6841474f3b8a693f3bc6"
+    },
+    {
+      "id": 4897698437,
+      "number": 6,
+      "title": "DCE-002: Use actual provider login time for sensitive actions (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/6",
+      "createdAt": "2026-10-17T05:47:27Z",
+      "updatedAt": "2026-10-17T05:47:27Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "a0e66488175a5a469f41543a7d60505eb1406b7d",
+      "headSha": "657f9c246cdca9f13a71ba0407fa92049de5831f",
       "baseRef": "main",
-      "mergeCommitSha": "3eac5fa45c9168396b715b43fa410c45f701991e"
+      "mergeCommitSha": "d74bca68085c874ef6d66639245808c454214234"
     }
   ]
 }
