@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 15,
+  "roadmapVersion": 16,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T22:36:15Z",
+  "observedAt": "2026-10-17T22:49:00Z",
   "units": [
     {
       "id": "DCE-001",
@@ -124,7 +124,8 @@
         3,
         5,
         8,
-        14
+        14,
+        15
       ]
     },
     {
@@ -1081,16 +1082,31 @@
       "id": 4904512724,
       "number": 14,
       "title": "DCE-005: Add versioned inline links and citations (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/14",
       "createdAt": "2026-10-17T22:36:15Z",
-      "updatedAt": "2026-10-17T22:36:15Z",
+      "updatedAt": "2026-10-17T22:45:15Z",
+      "mergedAt": "2026-10-17T22:45:15Z",
+      "closedAt": "2026-10-17T22:45:15Z",
+      "draft": false,
+      "headSha": "7633e6915092cd3be43c56a5fea6f4e99ceffda7",
+      "baseRef": "main",
+      "mergeCommitSha": "625c341f7fca791817294ef0b4cdd73537f42a59"
+    },
+    {
+      "id": 4904584959,
+      "number": 15,
+      "title": "DCE-005: Edit and remove external inline sources (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/15",
+      "createdAt": "2026-10-17T22:48:08Z",
+      "updatedAt": "2026-10-17T22:48:08Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "7a24e8023ee0b4f08829cc610fc4a305242bcbcc",
+      "headSha": "9972826f06785359babc5d9ca5377c883705afe1",
       "baseRef": "main",
-      "mergeCommitSha": "3acbd0b2ca02b127cb401bb5ee953a58c625e9c8"
+      "mergeCommitSha": "71c922f6f10c0174357ed0b7a2c7b33e60543eca"
     }
   ]
 }
