@@ -1,4 +1,4 @@
-import {invariant} from './integrity.mjs';
+import {invariant} from './integrity-values.mjs';
 export const FEDERAL_HIERARCHY=Object.freeze(['section','lower-alpha','decimal','upper-alpha','lower-roman','upper-roman']);
 const alpha=n=>{let s='';while(n>0){n--;s=String.fromCharCode(97+n%26)+s;n=Math.floor(n/26);}return s;};
 function roman(n) {

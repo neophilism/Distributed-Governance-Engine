@@ -87,7 +87,7 @@
         "Golden document fixtures, malformed/deep tree fuzzing, migration rollback and hash-domain separation tests."
       ],
       "specification": "docs/prs/DCE-004.md",
-      "implementationStatus": "planned",
+      "implementationStatus": "implemented",
       "operationalAcceptance": "unverified"
     },
     {
