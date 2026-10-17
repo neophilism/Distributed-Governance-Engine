@@ -4,7 +4,7 @@
   "roadmapVersion": 18,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T23:35:00Z",
+  "observedAt": "2026-10-17T23:46:00Z",
   "units": [
     {
       "id": "DCE-001",
@@ -127,7 +127,8 @@
         14,
         15,
         16,
-        17
+        17,
+        18
       ]
     },
     {
@@ -1129,16 +1130,31 @@
       "id": 4904859889,
       "number": 17,
       "title": "DCE-005: Add structured citation metadata",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/17",
       "createdAt": "2026-10-17T23:34:36Z",
-      "updatedAt": "2026-10-17T23:34:36Z",
+      "updatedAt": "2026-10-17T23:39:22Z",
+      "mergedAt": "2026-10-17T23:39:22Z",
+      "closedAt": "2026-10-17T23:39:22Z",
+      "draft": false,
+      "headSha": "7da465eb0ee24c4329fbcdc4781f53ddec2d2f3b",
+      "baseRef": "main",
+      "mergeCommitSha": "fef247160bd20b43dab12088f53bc84086583f87"
+    },
+    {
+      "id": 4904909221,
+      "number": 18,
+      "title": "DCE-005: Verify keyboard focus and narrow reflow",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/18",
+      "createdAt": "2026-10-17T23:43:17Z",
+      "updatedAt": "2026-10-17T23:43:17Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "69cda1b3d90152c1810cd756bb4eb80e2c80c403",
+      "headSha": "4f37c1fc6331007527cdb80603eaec0f355cf895",
       "baseRef": "main",
-      "mergeCommitSha": "693ac9fa749eefb2cd26a966d9811285f04f2c8f"
+      "mergeCommitSha": "95e88be244be3c796733cedeab8d5d617001788e"
     }
   ]
 }
