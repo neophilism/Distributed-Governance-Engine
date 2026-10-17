@@ -1,0 +1,430 @@
+import { digest } from "../src/integrity.mjs";
+import {
+  legalDocumentDigest,
+  validateLegalDocument,
+  publicInputEdition,
+} from "../src/legal-schema.mjs";
+
+export const PUBLIC_DISCLOSURE = "publish-all-revisions-v1";
+export class DocumentError extends Error {
+  constructor(code, status = 400) {
+    super(code);
+    this.code = code;
+    this.status = status;
+  }
+}
+const requireValue = (value, code, status) => {
+  if (!value) throw new DocumentError(code, status);
+};
+const uuid = (value) =>
+  typeof value === "string" &&
+  /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
+const editableRoles = ["owner", "admin", "editor"];
+const snapshot = row => {
+  const document=validateLegalDocument(row.document??row.current);
+  requireValue(legalDocumentDigest(document)===row.digest,'DOCUMENT_INTEGRITY_ERROR',503);
+  return {document,version:row.version,digest:row.digest,previousDigest:row.previous_digest??null,anchorStatus:'pending',visibility:'public'};
+};
+function legal(value) {
+  try {
+    return validateLegalDocument(value);
+  } catch {
+    throw new DocumentError("INVALID_DOCUMENT");
+  }
+}
+const version = (value) =>
+  Number.isSafeInteger(value) && value >= 1 && value <= 1000000;
+
+/** Public-only repository. No plaintext private-content fallback exists. */
+export function createDocumentStore({
+  identity,
+  transaction,
+  clock = Date.now,
+  maxDocuments = 100,
+  maxVersions = 1000,
+  maxStoredBytes = 30000000,
+}) {
+  for (const n of [maxDocuments, maxVersions])
+    if (!Number.isSafeInteger(n) || n < 1 || n > 1000000)
+      throw Error("Invalid document budget");
+  if (
+    !Number.isSafeInteger(maxStoredBytes) ||
+    maxStoredBytes < 1 ||
+    maxStoredBytes > 1000000000
+  )
+    throw Error("Invalid storage budget");
+  const now = () => {
+    const value = clock();
+    if (!Number.isSafeInteger(value) || value < 0) throw Error("Invalid clock");
+    return new Date(value);
+  };
+  const context = (credentials, tenantId, write, operation) => {
+    requireValue(uuid(tenantId), "INVALID_WORKSPACE");
+    return identity.withTenant(
+      credentials,
+      tenantId,
+      { write, roles: write ? editableRoles : undefined },
+      operation,
+    );
+  };
+  const command = (id) => requireValue(uuid(id), "INVALID_COMMAND_ID");
+  async function prior(db, tenantId, commandId, requestDigest) {
+    const row = (
+      await db.query(
+        "SELECT * FROM dge_documents.versions WHERE tenant_id=$1 AND command_id=$2",
+        [tenantId, commandId],
+      )
+    ).rows[0];
+    if (row)
+      requireValue(row.request_digest === requestDigest, "COMMAND_REUSED", 409);
+    return row ? snapshot(row) : null;
+  }
+  async function append(
+    db,
+    actor,
+    document,
+    { commandId, requestDigest, nextVersion, previousDigest },
+  ) {
+    const value = legalDocumentDigest(document),
+      at = now(),
+      bytes = Buffer.byteLength(JSON.stringify(document));
+    await db.query(
+      "INSERT INTO dge_documents.usage(tenant_id,stored_bytes) VALUES($1,0) ON CONFLICT DO NOTHING",
+      [actor.tenantId],
+    );
+    requireValue(
+      (
+        await db.query(
+          "UPDATE dge_documents.usage SET stored_bytes=stored_bytes+$2 WHERE tenant_id=$1 AND stored_bytes+$2<=$3 RETURNING stored_bytes",
+          [actor.tenantId, bytes, maxStoredBytes],
+        )
+      ).rows.length,
+      "STORAGE_LIMIT_REACHED",
+      429,
+    );
+    const eventDigest = digest("public-document-version-v1", {
+      tenantId: actor.tenantId,
+      documentId: document.id,
+      version: nextVersion,
+      digest: value,
+      previousDigest,
+      createdAt: at.toISOString(),
+    });
+    await db.query(
+      `INSERT INTO dge_documents.versions(tenant_id,document_id,version,document,digest,previous_digest,event_digest,command_id,request_digest,actor_id,created_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        actor.tenantId,
+        document.id,
+        nextVersion,
+        document,
+        value,
+        previousDigest,
+        eventDigest,
+        commandId,
+        requestDigest,
+        actor.accountId,
+        at,
+      ],
+    );
+    await db.query(
+      "INSERT INTO dge_documents.anchor_outbox(tenant_id,document_id,version,event_digest,created_at) VALUES($1,$2,$3,$4,$5)",
+      [actor.tenantId, document.id, nextVersion, eventDigest, at],
+    );
+    return snapshot({
+      document,
+      version: nextVersion,
+      digest: value,
+      previous_digest: previousDigest,
+    });
+  }
+  return Object.freeze({
+    async create(credentials, tenantId, { document, commandId, disclosure }) {
+      command(commandId);
+      requireValue(
+        disclosure === PUBLIC_DISCLOSURE,
+        "PUBLIC_DISCLOSURE_REQUIRED",
+      );
+      const doc = legal(document);
+      requireValue(
+        uuid(doc.id) &&
+          doc.tenantId === tenantId &&
+          doc.mode === "collaboration" &&
+          doc.lifecycle === "draft",
+        "INVALID_DOCUMENT_CONTEXT",
+      );
+      const requestDigest = digest("public-document-command-v1", {
+        action: "create",
+        document: doc,
+        disclosure,
+      });
+      return context(credentials, tenantId, true, async (db, actor) => {
+        const replay = await prior(db, tenantId, commandId, requestDigest);
+        if (replay) return replay;
+        const count = (
+          await db.query(
+            "SELECT count(*)::int AS n FROM dge_documents.documents WHERE tenant_id=$1",
+            [tenantId],
+          )
+        ).rows[0].n;
+        requireValue(count < maxDocuments, "DOCUMENT_LIMIT_REACHED", 429);
+        requireValue(
+          !(
+            await db.query(
+              "SELECT id FROM dge_documents.documents WHERE id=$1",
+              [doc.id],
+            )
+          ).rows.length,
+          "DOCUMENT_ID_EXISTS",
+          409,
+        );
+        try {
+          await db.query(
+            "INSERT INTO dge_documents.documents(tenant_id,id,visibility,disclosure,created_by,created_at,version,digest,current) VALUES($1,$2,$3,$4,$5,$6,1,$7,$8)",
+            [
+              tenantId,
+              doc.id,
+              "public",
+              disclosure,
+              actor.accountId,
+              now(),
+              legalDocumentDigest(doc),
+              doc,
+            ],
+          );
+        } catch (cause) {
+          if (cause.code === "23505")
+            throw new DocumentError("DOCUMENT_ID_EXISTS", 409);
+          throw cause;
+        }
+        return append(db, actor, doc, {
+          commandId,
+          requestDigest,
+          nextVersion: 1,
+          previousDigest: null,
+        });
+      });
+    },
+    async list(credentials, tenantId, { after = null, limit = 50 } = {}) {
+      requireValue(
+        (after === null || uuid(after)) &&
+          Number.isSafeInteger(limit) &&
+          limit >= 1 &&
+          limit <= 100,
+        "INVALID_PAGE",
+      );
+      return context(credentials, tenantId, false, async (db, actor) => {
+        const rows = (
+          await db.query(
+            `SELECT id,version,digest,current->'metadata'->>'title' AS title,current->>'mode' AS mode FROM dge_documents.documents
+          WHERE tenant_id=$1 AND ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3`,
+            [tenantId, after, limit + 1],
+          )
+        ).rows;
+        return {
+          items: rows.slice(0, limit),
+          nextCursor: rows.length > limit ? rows[limit - 1].id : null,
+          viewerRole: actor.role,
+        };
+      });
+    },
+    async read(credentials, tenantId, documentId) {
+      requireValue(uuid(documentId), "INVALID_DOCUMENT_ID");
+      return context(credentials, tenantId, false, async (db, actor) => {
+        const row = (
+          await db.query(
+            "SELECT d.*,v.previous_digest FROM dge_documents.documents d JOIN dge_documents.versions v ON v.tenant_id=d.tenant_id AND v.document_id=d.id AND v.version=d.version WHERE d.tenant_id=$1 AND d.id=$2",
+            [tenantId, documentId],
+          )
+        ).rows[0];
+        requireValue(row, "DOCUMENT_NOT_FOUND", 404);
+        return { ...snapshot(row), viewerRole: actor.role };
+      });
+    },
+    async save(
+      credentials,
+      tenantId,
+      documentId,
+      { document, commandId, expectedVersion },
+    ) {
+      command(commandId);
+      requireValue(
+        uuid(documentId) && version(expectedVersion),
+        "INVALID_VERSION",
+      );
+      const doc = legal(document);
+      requireValue(
+        doc.id === documentId &&
+          doc.tenantId === tenantId &&
+          doc.mode === "collaboration" &&
+          doc.lifecycle === "draft",
+        "INVALID_DOCUMENT_CONTEXT",
+      );
+      const requestDigest = digest("public-document-command-v1", {
+        action: "save",
+        document: doc,
+        expectedVersion,
+      });
+      return context(credentials, tenantId, true, async (db, actor) => {
+        const replay = await prior(db, tenantId, commandId, requestDigest);
+        if (replay) return replay;
+        const row = (
+          await db.query(
+            "SELECT * FROM dge_documents.documents WHERE tenant_id=$1 AND id=$2 FOR UPDATE",
+            [tenantId, documentId],
+          )
+        ).rows[0];
+        requireValue(row, "DOCUMENT_NOT_FOUND", 404);
+        requireValue(
+          row.current.mode === "collaboration" &&
+            row.current.lifecycle === "draft",
+          "SOURCE_FROZEN",
+          409,
+        );
+        requireValue(row.version === expectedVersion, "VERSION_CONFLICT", 409);
+        requireValue(row.version < maxVersions, "VERSION_LIMIT_REACHED", 429);
+        requireValue(
+          doc.revision > row.current.revision,
+          "REVISION_MUST_ADVANCE",
+          409,
+        );
+        await db.query(
+          "UPDATE dge_documents.documents SET current=$3,version=version+1,digest=$4 WHERE tenant_id=$1 AND id=$2",
+          [tenantId, documentId, doc, legalDocumentDigest(doc)],
+        );
+        return append(db, actor, doc, {
+          commandId,
+          requestDigest,
+          nextVersion: row.version + 1,
+          previousDigest: row.digest,
+        });
+      });
+    },
+    async freezeForInput(
+      credentials,
+      tenantId,
+      documentId,
+      { commandId, expectedVersion },
+    ) {
+      command(commandId);
+      requireValue(
+        uuid(documentId) && version(expectedVersion),
+        "INVALID_VERSION",
+      );
+      const requestDigest = digest("public-document-command-v1", {
+        action: "freeze-public-input",
+        documentId,
+        expectedVersion,
+      });
+      return identity.withTenant(
+        credentials,
+        tenantId,
+        { write: true, recent: true, roles: ["owner", "admin"] },
+        async (db, actor) => {
+          const replay = await prior(db, tenantId, commandId, requestDigest);
+          if (replay) return replay;
+          const row = (
+            await db.query(
+              "SELECT * FROM dge_documents.documents WHERE tenant_id=$1 AND id=$2 FOR UPDATE",
+              [tenantId, documentId],
+            )
+          ).rows[0];
+          requireValue(row, "DOCUMENT_NOT_FOUND", 404);
+          requireValue(
+            row.version === expectedVersion,
+            "VERSION_CONFLICT",
+            409,
+          );
+          requireValue(row.version < maxVersions, "VERSION_LIMIT_REACHED", 429);
+          requireValue(
+            row.current.mode === "collaboration" &&
+              row.current.lifecycle === "draft",
+            "SOURCE_FROZEN",
+            409,
+          );
+          let doc;
+          try {
+            doc = publicInputEdition(row.current);
+          } catch {
+            throw new DocumentError("UNRESOLVED_REFERENCES", 409);
+          }
+          await db.query(
+            "UPDATE dge_documents.documents SET current=$3,version=version+1,digest=$4 WHERE tenant_id=$1 AND id=$2",
+            [tenantId, documentId, doc, legalDocumentDigest(doc)],
+          );
+          return append(db, actor, doc, {
+            commandId,
+            requestDigest,
+            nextVersion: row.version + 1,
+            previousDigest: row.digest,
+          });
+        },
+      );
+    },
+    async publicRead(documentId, { version: edition = null } = {}) {
+      requireValue(
+        uuid(documentId) && (edition === null || version(edition)),
+        "INVALID_DOCUMENT_ID",
+      );
+      return transaction(async (db) => {
+        await db.query("SELECT set_config('dge.public_document_id',$1,true)", [
+          documentId,
+        ]);
+        const row =
+          edition === null
+            ? (
+                await db.query(
+                  "SELECT d.*,v.previous_digest FROM dge_documents.documents d JOIN dge_documents.versions v ON v.tenant_id=d.tenant_id AND v.document_id=d.id AND v.version=d.version WHERE d.id=$1",
+                  [documentId],
+                )
+              ).rows[0]
+            : (
+                await db.query(
+                  "SELECT * FROM dge_documents.versions WHERE document_id=$1 AND version=$2",
+                  [documentId, edition],
+                )
+              ).rows[0];
+        requireValue(row, "DOCUMENT_NOT_FOUND", 404);
+        return snapshot(row);
+      });
+    },
+    async history(documentId, { before = null, limit = 50 } = {}) {
+      requireValue(
+        uuid(documentId) &&
+          (before === null || version(before)) &&
+          Number.isSafeInteger(limit) &&
+          limit >= 1 &&
+          limit <= 100,
+        "INVALID_PAGE",
+      );
+      return transaction(async (db) => {
+        await db.query("SELECT set_config('dge.public_document_id',$1,true)", [
+          documentId,
+        ]);
+        requireValue(
+          (
+            await db.query(
+              "SELECT id FROM dge_documents.documents WHERE id=$1",
+              [documentId],
+            )
+          ).rows.length,
+          "DOCUMENT_NOT_FOUND",
+          404,
+        );
+        const rows = (
+          await db.query(
+            `SELECT version,digest,previous_digest AS "previousDigest",event_digest AS "eventDigest",created_at AS "createdAt" FROM dge_documents.versions
+          WHERE document_id=$1 AND ($2::int IS NULL OR version<$2::int) ORDER BY version DESC LIMIT $3`,
+            [documentId, before, limit + 1],
+          )
+        ).rows;
+        return {
+          items: rows
+            .slice(0, limit)
+            .map((row) => ({ ...row, anchorStatus: "pending" })),
+          nextCursor: rows.length > limit ? rows[limit - 1].version : null,
+        };
+      });
+    },
+  });
+}

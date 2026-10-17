@@ -196,6 +196,11 @@ export function AccountPanel() {
   const authority =
     memberPage.tenantId === selected ? memberPage.viewerRole : null;
   const members = memberPage.tenantId === selected ? memberPage.items : [];
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener("quill-open-documents", close);
+    return () => window.removeEventListener("quill-open-documents", close);
+  }, []);
   return (
     <>
       <button

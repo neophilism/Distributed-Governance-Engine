@@ -77,7 +77,12 @@ export function createEngineApplication({
 }
 
 /** PUBLIC_ORIGIN and socket identity are trusted configuration, never forwarded headers. */
-export function nodeListener({ application, origin, requireTLS = true }) {
+export function nodeListener({
+  application,
+  origin,
+  requireTLS = true,
+  bodyLimit = () => 8192,
+}) {
   const site = new URL(origin);
   return async (req, res) => {
     try {
@@ -97,7 +102,10 @@ export function nodeListener({ application, origin, requireTLS = true }) {
         res.end("Invalid request");
         return;
       }
-      if (Number(req.headers["content-length"] ?? 0) > 8192) {
+      const maxBytes = bodyLimit(req.url.split("?")[0]);
+      if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 4000000)
+        throw Error("Invalid request budget");
+      if (Number(req.headers["content-length"] ?? 0) > maxBytes) {
         res.writeHead(413, security);
         res.end("Body too large", () => req.destroy());
         return;
@@ -106,7 +114,7 @@ export function nodeListener({ application, origin, requireTLS = true }) {
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 8192) {
+        if (size > maxBytes) {
           res.writeHead(413, security);
           res.end("Body too large", () => req.destroy());
           return;
@@ -142,11 +150,17 @@ export function nodeListener({ application, origin, requireTLS = true }) {
     }
   };
 }
-export function createEngineServer({ application, origin, key, cert }) {
+export function createEngineServer({
+  application,
+  origin,
+  key,
+  cert,
+  bodyLimit,
+}) {
   if (!key || !cert) throw Error("TLS certificate and key are required");
   const server = createServer(
     { key, cert, minVersion: "TLSv1.3", ALPNProtocols: ["http/1.1"] },
-    nodeListener({ application, origin }),
+    nodeListener({ application, origin, bodyLimit }),
   );
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;

@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "status": "design-only-not-deployed",
+  "version": 2,
+  "status": "partial-implementation-not-deployed",
   "flows": [
     {
       "id": "private-content",
@@ -29,7 +29,18 @@
         "intentional publication service"
       ],
       "services": "explicit public disclosure",
-      "onChain": "hash/Merkle commitment only"
+      "onChain": "hash/Merkle commitment only",
+      "implementedAssets": [
+        "explicitly disclosed public drafts and all saved versions",
+        "public source/schema/document/workspace IDs",
+        "version/digest/timestamp metadata"
+      ],
+      "internalOnly": [
+        "author account ID",
+        "command ID and request digest",
+        "identity provider subject and session data"
+      ],
+      "anchoringStatus": "pending outbox only; no chain transaction/receipt"
     },
     {
       "id": "governance-metadata",

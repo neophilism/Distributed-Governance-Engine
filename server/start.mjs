@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 import pg from "pg";
+import { createDocumentStore } from "./document-store.mjs";
+import { createDocumentRoutes, documentBodyLimit } from "./document-http.mjs";
 import {
   createIdentityStore,
   pgTransactions,
@@ -53,7 +55,19 @@ try {
   });
   const redirectUri = origin + "/auth/callback";
   const login = createOIDCLogin({ store, configuration, redirectUri }),
-    accounts = createAccountHandler({ store, login, origin });
+    accounts = createAccountHandler({
+      store,
+      login,
+      origin,
+      extensions: [
+        createDocumentRoutes({
+          documents: createDocumentStore({
+            identity: store,
+            transaction: pgTransactions(pool),
+          }),
+        }),
+      ],
+    });
   const application = createEngineApplication({
     accounts,
     origin,
@@ -61,7 +75,13 @@ try {
   });
   const key = await readFile(required("TLS_KEY_FILE")),
     cert = await readFile(required("TLS_CERT_FILE"));
-  const server = createEngineServer({ application, origin, key, cert });
+  const server = createEngineServer({
+    application,
+    origin,
+    key,
+    cert,
+    bodyLimit: documentBodyLimit,
+  });
   const port = Number(process.env.PORT ?? 8443);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw Error("Invalid port");

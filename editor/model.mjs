@@ -69,8 +69,8 @@ function identityPlugin(baseDocument) {
   return tr.docChanged?tr:null;
  }});
 }
-export function createLegalEditorState(document) {
- const editable=canDirectlyEdit(document);
+export function createLegalEditorState(document,{readOnly=false}={}) {
+ const editable=canDirectlyEdit(document)&&!readOnly;
  return EditorState.create({schema:editorSchema,doc:legalToEditor(document),plugins:[
   new Plugin({filterTransaction:tr=>editable||!tr.docChanged}),identityPlugin(document),history(),
   keymap({'Mod-z':undo,'Mod-y':redo,'Mod-Shift-z':redo,'Mod-b':toggleMark(editorSchema.marks.bold),'Mod-i':toggleMark(editorSchema.marks.italic),'Mod-u':toggleMark(editorSchema.marks.underline),'Enter':splitListItem(editorSchema.nodes.list_item)}),keymap(baseKeymap)
@@ -81,12 +81,12 @@ export function applyLegalTransaction(state,transaction,base) {
  const result=state.applyTransaction(transaction),changed=result.transactions.some(t=>t.docChanged);
  return {state:result.state,document:changed?editorToLegal(result.state.doc,base,{increment:true}):base,changed};
 }
-export function mountLegalEditor(element,initial,{onChange=()=>{},onError=()=>{}}={}) {
+export function mountLegalEditor(element,initial,{onChange=()=>{},onError=()=>{},readOnly=false}={}) {
  let current=validateLegalDocument(initial),rejectedTransactions=0;
- const view=new EditorView(element,{state:createLegalEditorState(current),editable:()=>canDirectlyEdit(current),transformPastedHTML:html=>cleanPastedHTML(html,element.ownerDocument).innerHTML,attributes:{role:'textbox','aria-label':'Legal document text','aria-multiline':'true',spellcheck:'true'},dispatchTransaction(transaction){
+ const view=new EditorView(element,{state:createLegalEditorState(current,{readOnly}),editable:()=>canDirectlyEdit(current)&&!readOnly,transformPastedHTML:html=>cleanPastedHTML(html,element.ownerDocument).innerHTML,attributes:{role:'textbox','aria-label':'Legal document text','aria-multiline':'true',spellcheck:'true'},dispatchTransaction(transaction){
   try{const next=applyLegalTransaction(view.state,transaction,current);current=next.document;view.updateState(next.state);if(next.changed)onChange(current);}catch(error){rejectedTransactions++;onError(error.message);}
  }});
- return {view,getDocument:()=>current,destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
+ return {view,getDocument:()=>current,destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(readOnly||!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
 }
 export const commands={undo,redo,bold:toggleMark(editorSchema.marks.bold),italic:toggleMark(editorSchema.marks.italic),underline:toggleMark(editorSchema.marks.underline),strike:toggleMark(editorSchema.marks.strike),numberedList:wrapInList(editorSchema.nodes.legal_list,{style:'decimal'}),bulletList:wrapInList(editorSchema.nodes.legal_list,{style:'bullet'})};
 export function appendSection(title) {return (state,dispatch)=>{

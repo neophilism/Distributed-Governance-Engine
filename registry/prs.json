@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 7,
+  "roadmapVersion": 8,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T12:30:09.068Z",
+  "observedAt": "2026-10-17T12:44:16.392Z",
   "units": [
     {
       "id": "DCE-001",
@@ -959,16 +959,16 @@
       "id": 4900048825,
       "number": 7,
       "title": "DCE-002: Connect secure account routes and workspace UI (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/7",
       "createdAt": "2026-10-17T12:29:20Z",
-      "updatedAt": "2026-10-17T12:29:20Z",
-      "mergedAt": null,
-      "closedAt": null,
+      "updatedAt": "2026-10-17T12:31:41Z",
+      "mergedAt": "2026-10-17T12:31:41Z",
+      "closedAt": "2026-10-17T12:31:41Z",
       "draft": false,
-      "headSha": "05d3ebbfcd4c03e2664b0201ebcaedbd21423574",
+      "headSha": "e885f3fe7ab57c5093715576bda710a36b7fa9b1",
       "baseRef": "main",
-      "mergeCommitSha": "3b7206ee91df8ae8163b788330f5413b913084ba"
+      "mergeCommitSha": "0102d6c4b3420959db6d92ede4aa8076f676682c"
     }
   ]
 }

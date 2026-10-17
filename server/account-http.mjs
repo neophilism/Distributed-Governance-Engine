@@ -37,14 +37,19 @@ export function requestCookies(header = "") {
   }
   return result;
 }
-export async function boundedJson(request, allowed, required = allowed) {
+export async function boundedJson(
+  request,
+  allowed,
+  required = allowed,
+  maxBytes = 8192,
+) {
   if (
     !/^application\/json(?:\s*;|$)/i.test(
       request.headers.get("content-type") ?? "",
     )
   )
     throw new HttpError(415, "JSON_REQUIRED");
-  if (Number(request.headers.get("content-length") ?? 0) > 8192)
+  if (Number(request.headers.get("content-length") ?? 0) > maxBytes)
     throw new HttpError(413, "BODY_TOO_LARGE");
   const reader = request.body?.getReader();
   let size = 0;
@@ -55,7 +60,7 @@ export async function boundedJson(request, allowed, required = allowed) {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > 8192) {
+        if (size > maxBytes) {
           await reader.cancel();
           throw new HttpError(413, "BODY_TOO_LARGE");
         }
@@ -137,6 +142,7 @@ export function createAccountHandler({
   login,
   origin,
   budget = createRequestBudget(),
+  extensions = [],
 }) {
   if (new URL(origin).origin !== origin || !origin.startsWith("https://"))
     throw Error("Canonical HTTPS origin required");
@@ -176,6 +182,22 @@ export function createAccountHandler({
             allow: allowed.join(", "),
           });
       };
+      for (const extension of extensions) {
+        const result = await extension({
+          request,
+          url,
+          credentials,
+          write,
+          method,
+        });
+        if (result !== null)
+          return json(
+            result,
+            request.method === "POST" && url.pathname.endsWith("/documents")
+              ? 201
+              : 200,
+          );
+      }
       if (url.pathname === "/auth/start") {
         method(["GET"]);
         if (url.search) throw new HttpError(400, "INVALID_QUERY");

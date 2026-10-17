@@ -16,7 +16,8 @@
     "test:postgres": "node --test tests/identity-postgres.integration.mjs",
     "start": "node server/start.mjs",
     "migrate:identity": "node scripts/migrate-identity.mjs",
-    "test:browser": "node --test tests/*.browser.mjs"
+    "test:browser": "node --test tests/*.browser.mjs",
+    "migrate": "node scripts/migrate-identity.mjs"
   },
   "exports": {
     ".": "./src/index.mjs",
@@ -26,7 +27,10 @@
     "./identity": "./server/identity-store.mjs",
     "./oidc": "./server/oidc-login.mjs",
     "./account-http": "./server/account-http.mjs",
-    "./application": "./server/application.mjs"
+    "./application": "./server/application.mjs",
+    "./document-store": "./server/document-store.mjs",
+    "./document-http": "./server/document-http.mjs",
+    "./document-session": "./editor/document-session.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
