@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 14,
+  "roadmapVersion": 15,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T22:11:53Z",
+  "observedAt": "2026-10-17T22:36:15Z",
   "units": [
     {
       "id": "DCE-001",
@@ -123,7 +123,8 @@
       "contributingPrs": [
         3,
         5,
-        8
+        8,
+        14
       ]
     },
     {
@@ -1065,16 +1066,31 @@
       "id": 4904353814,
       "number": 13,
       "title": "DCE-002: Add passkey step-up and device authorization (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/13",
       "createdAt": "2026-10-17T22:11:52Z",
-      "updatedAt": "2026-10-17T22:11:53Z",
+      "updatedAt": "2026-10-17T22:16:29Z",
+      "mergedAt": "2026-10-17T22:16:28Z",
+      "closedAt": "2026-10-17T22:16:28Z",
+      "draft": false,
+      "headSha": "986d43d1ab5ddfbb8e9997de019402e3e312f450",
+      "baseRef": "main",
+      "mergeCommitSha": "1694b3b1e023a59909b0a9779800a5db2c53d569"
+    },
+    {
+      "id": 4904512724,
+      "number": 14,
+      "title": "DCE-005: Add versioned inline links and citations (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/14",
+      "createdAt": "2026-10-17T22:36:15Z",
+      "updatedAt": "2026-10-17T22:36:15Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "dc7d469bac9d1b1c0ad541b10dce56cdd0db7a98",
+      "headSha": "7a24e8023ee0b4f08829cc610fc4a305242bcbcc",
       "baseRef": "main",
-      "mergeCommitSha": null
+      "mergeCommitSha": "3acbd0b2ca02b127cb401bb5ee953a58c625e9c8"
     }
   ]
 }
