@@ -146,7 +146,8 @@ test(
         if (
           !droppedSave &&
           request.method() === "PUT" &&
-          path === `/api/workspaces/public-demo/documents/${id}`
+          path.startsWith("/api/workspaces/") &&
+          path.endsWith(`/documents/${id}`)
         ) {
           droppedSave = true;
           request.abort("internetdisconnected");
