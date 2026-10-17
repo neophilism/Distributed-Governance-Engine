@@ -285,6 +285,11 @@ export function createDiscussionStore({
           value,
           expectedVoteVersion,
         });
+        // A missing vote row cannot be locked. Serialize first votes and later changes
+        // by account/point before reading either idempotency or current-vote state.
+        await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+          `point-vote:${tenantId}:${pointId}:${actor.accountId}`,
+        ]);
         const previous = (
           await db.query(
             "SELECT request_digest,result FROM dge_discussion.vote_events WHERE tenant_id=$1 AND actor_id=$2 AND command_id=$3",
