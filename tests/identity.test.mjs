@@ -96,6 +96,7 @@ test('single-use recovery codes revoke sessions and create a read-only recovery 
     accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',recoveryRestricted:true
   });
   await denied(store.createTenant({...recovery,origin}));
+  await denied(store.withTenant({...recovery,origin},randomUUID(),{},async()=>true));
   await denied(store.recoverAccount(primary.accountId,issued.recoveryCodes[0]));
   await denied(store.recoverAccount(randomUUID(),issued.recoveryCodes[1]));
   await store.logout({...recovery,origin});await denied(store.account(recovery.sessionToken));

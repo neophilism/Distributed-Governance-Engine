@@ -82,6 +82,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   const event=(db,tenantId,actorId,subjectId,kind)=>db.query('INSERT INTO dge_identity.events(id,tenant_id,actor_id,subject_id,kind,occurred_at) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),tenantId,actorId,subjectId,kind,now()]);
   async function tenantContext(db,credentials,tenantId,write=false,recent=write) {
     const actor=await session(db,credentials,write,recent);
+    deny(actor.authentication_method==='oidc','RECOVERY_SESSION_RESTRICTED');
     await scope(db,tenantId);
     const tenant=await db.query(`SELECT id FROM dge_identity.tenants WHERE id=$1 FOR ${write?'UPDATE':'SHARE'}`,[tenantId]);
     deny(tenant.rows.length);
@@ -122,6 +123,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
     }),
     issueRecoveryCodes:credentials=>transaction(async db=>{
       const actor=await session(db,credentials,true,true),createdAt=now(),expiresAt=new Date(createdAt.getTime()+30*86400000);
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['recovery-codes:'+actor.id]);
       await db.query('UPDATE dge_identity.recovery_codes SET revoked_at=$2 WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[actor.id,createdAt]);
       const recoveryCodes=[];
       for(let index=0;index<8;index++){

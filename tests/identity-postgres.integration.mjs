@@ -61,6 +61,11 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const recovered=results.find(x=>x.status==='fulfilled').value;
     assert.equal((await store.sessionInfo(recovered.sessionToken)).recoveryRestricted,true);
     await assert.rejects(store.createTenant({...recovered,origin:'https://quill.example'}),AccessError);
+    await assert.rejects(store.withTenant({...recovered,origin:'https://quill.example'},tenantId,{},async()=>true),AccessError);
+    const rotationUser=await user();
+    await Promise.all([store.issueRecoveryCodes(rotationUser),store.issueRecoveryCodes(rotationUser)]);
+    const active=(await owner.query('SELECT count(*)::int AS n FROM dge_identity.recovery_codes WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[rotationUser.accountId])).rows[0].n;
+    assert.equal(active,8);
     await store.logout({...recovered,origin:'https://quill.example'});
   });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
