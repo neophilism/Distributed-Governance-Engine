@@ -107,7 +107,7 @@ export const commands={undo,redo,bold:toggleMark(editorSchema.marks.bold),italic
 function insertExternalInline(kind,targetUrl,label,title,citationMetadata) {return (state,dispatch)=>{
  let url,metadata=null;try{url=normalizeExternalUrl(targetUrl);metadata=kind==='citation'?normalizeCitationMetadata(citationMetadata):null;}catch{return false;}
  const selected=state.selection.empty?'':state.doc.textBetween(state.selection.from,state.selection.to,'','');const text=(label??selected).trim();
- if(!text||text.length>1000||title!==undefined&&(typeof title!=='string'||title.length>1000)||!state.selection.$from.sameParent(state.selection.$to)||!state.selection.$from.parent.isTextblock)return false;
+ if(!text||text.length>1000||title!==undefined&&title!==null&&(typeof title!=='string'||title.length>1000)||!state.selection.$from.sameParent(state.selection.$to)||!state.selection.$from.parent.isTextblock)return false;
  if(dispatch){const node=editorSchema.nodes[kind].createChecked({targetUrl:url,label:text,title:title??null,...(kind==='citation'?{citationMetadata:metadata}: {})});dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());}return true;
 };}
 export const insertExternalLink=(targetUrl,label,title)=>insertExternalInline('external_link',targetUrl,label,title);

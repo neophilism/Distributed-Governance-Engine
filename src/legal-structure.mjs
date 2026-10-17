@@ -50,8 +50,8 @@ function validIsoDate(value) {
 function validateCitationMetadata(value) {
  fields(value,['publisher','publishedOn','pinpoint','accessedOn']);
  invariant(Object.keys(value).length>0,'Empty citation metadata');
- if(value.publisher!==undefined){text(value.publisher,1000);invariant(value.publisher.length>0,'Citation publisher is empty');}
- if(value.pinpoint!==undefined){text(value.pinpoint,200);invariant(value.pinpoint.length>0,'Citation pinpoint is empty');}
+ if(value.publisher!==undefined){text(value.publisher,1000);invariant(value.publisher.length>0&&value.publisher.trim()===value.publisher,'Citation publisher is empty or non-canonical');}
+ if(value.pinpoint!==undefined){text(value.pinpoint,200);invariant(value.pinpoint.length>0&&value.pinpoint.trim()===value.pinpoint,'Citation pinpoint is empty or non-canonical');}
  if(value.publishedOn!==undefined){text(value.publishedOn,10);validIsoDate(value.publishedOn);}
  if(value.accessedOn!==undefined){text(value.accessedOn,10);validIsoDate(value.accessedOn);}
 }
