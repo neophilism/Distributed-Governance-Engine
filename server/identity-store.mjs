@@ -4,18 +4,31 @@ import {readFile} from 'node:fs/promises';
 export class AccessError extends Error {
   constructor(code='ACCESS_DENIED') { super(code); this.name='AccessError'; this.code=code; }
 }
-const deny=condition=>{if(!condition)throw new AccessError();};
+const deny=(condition,code)=>{if(!condition)throw new AccessError(code);};
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 const token=()=>randomBytes(32).toString('base64url');
 const isToken=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value);
 const role=value=>['owner','admin','editor','participant','viewer'].includes(value);
 const date=value=>new Date(value).getTime();
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-export async function applyIdentityMigrations(transaction) {
-  const migrations=await Promise.all(['001-identity.sql','002-session-authentication-time.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
+export async function verifyIdentityRuntime(db){
+  const elevated=(await db.query(`WITH RECURSIVE granted AS (
+    SELECT oid,rolsuper,rolbypassrls,rolcreaterole,rolcreatedb,rolreplication FROM pg_roles WHERE rolname=current_user
+    UNION SELECT r.oid,r.rolsuper,r.rolbypassrls,r.rolcreaterole,r.rolcreatedb,r.rolreplication FROM pg_roles r
+    JOIN pg_auth_members m ON m.roleid=r.oid JOIN granted g ON m.member=g.oid)
+    SELECT bool_or(rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication) AS elevated FROM granted`)).rows[0];
+  const ownership=(await db.query("SELECT pg_has_role(current_user,tableowner,'MEMBER') OR has_schema_privilege(current_user,'dge_identity','CREATE') AS owns_schema FROM pg_tables WHERE schemaname='dge_identity' AND tablename='sessions'")).rows[0];
+  if(!elevated||elevated.elevated!==false||!ownership||ownership.owns_schema)throw Error('Unprivileged request credential required');
+  const expected=await migrationRecords(),observed=(await db.query('SELECT version,checksum FROM dge_identity.migrations ORDER BY version')).rows;
+  if(observed.length!==expected.length||expected.some((item,index)=>item.version!==observed[index]?.version||item.checksum!==observed[index]?.checksum))throw Error('Expected identity schema required');
+  return true;
+}
+export async function applyIdentityMigrations(transaction) {
+  const migrations=await migrationRecords();
   return transaction(async db=>{
     const exec=statement=>db.exec?db.exec(statement):db.query(statement);
     await db.query('SELECT pg_advisory_xact_lock(1245995845)');
@@ -41,32 +54,33 @@ export function pgTransactions(pool) {
 }
 
 /** Trusted server service, not a browser module or an HTTP identity assertion API. */
-export function createIdentityStore({transaction,sessionKey,stateKey,origin,clock=Date.now,sessionSeconds=28800}) {
+export function createIdentityStore({transaction,sessionKey,stateKey,origin,clock=Date.now,sessionSeconds=28800,maxOwnedWorkspaces=10,maxPendingInvitations=500,maxSessions=20}) {
   if(typeof transaction!=='function'||!Buffer.isBuffer(sessionKey)||sessionKey.length!==32||!Buffer.isBuffer(stateKey)||stateKey.length!==32||sessionKey.equals(stateKey))throw Error('Independent 32-byte identity keys required');
   const site=new URL(origin);
   if(site.protocol!=='https:'||site.origin!==origin)throw Error('An exact HTTPS origin is required');
   if(!Number.isSafeInteger(sessionSeconds)||sessionSeconds<60||sessionSeconds>86400)throw Error('Session duration must be 60–86400 seconds');
+  for(const n of [maxOwnedWorkspaces,maxPendingInvitations,maxSessions])if(!Number.isSafeInteger(n)||n<1||n>10000)throw Error('Invalid identity resource limit');
   // Copy configuration so a caller cannot mutate keys after initialization.
   sessionKey=Buffer.from(sessionKey);stateKey=Buffer.from(stateKey);
   const digest=(purpose,value)=>createHmac('sha256',sessionKey).update(purpose+'\0'+value).digest('hex');
   const now=()=>{const n=clock();if(!Number.isSafeInteger(n)||n<0)throw Error('Invalid server clock');return new Date(n);};
   const checkWrite=credentials=>deny(credentials?.origin===origin&&isToken(credentials.csrfToken));
   async function session(db,credentials,write=false,recent=false) {
-    deny(isToken(credentials?.sessionToken));
+    deny(isToken(credentials?.sessionToken),'AUTHENTICATION_REQUIRED');
     if(write)checkWrite(credentials);
-    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at FROM dge_identity.sessions s
+    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at,s.expires_at FROM dge_identity.sessions s
       JOIN dge_identity.accounts a ON a.id=s.account_id WHERE s.token_digest=$1 AND s.revoked_at IS NULL
       AND s.expires_at>$2 AND s.created_at<=$2 AND s.authenticated_at IS NOT NULL
       AND a.status='active' AND s.auth_epoch=a.auth_epoch FOR SHARE OF a,s`,[digest('session',credentials.sessionToken),now()]);
-    const row=result.rows[0];deny(row);
+    const row=result.rows[0];deny(row,'AUTHENTICATION_REQUIRED');
     if(write)deny(timingSafeEqual(Buffer.from(row.csrf_digest),Buffer.from(digest('csrf',credentials.csrfToken))));
-    if(recent)deny(date(row.authenticated_at)>now().getTime()-300000);
+    if(recent)deny(date(row.authenticated_at)>now().getTime()-300000,'REAUTHENTICATION_REQUIRED');
     return row;
   }
   const scope=(db,tenantId)=>{deny(uuid(tenantId));return db.query("SELECT set_config('dge.tenant_id',$1,true)",[tenantId]);};
   const event=(db,tenantId,actorId,subjectId,kind)=>db.query('INSERT INTO dge_identity.events(id,tenant_id,actor_id,subject_id,kind,occurred_at) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),tenantId,actorId,subjectId,kind,now()]);
-  async function tenantContext(db,credentials,tenantId,write=false) {
-    const actor=await session(db,credentials,write,write);
+  async function tenantContext(db,credentials,tenantId,write=false,recent=write) {
+    const actor=await session(db,credentials,write,recent);
     await scope(db,tenantId);
     const tenant=await db.query(`SELECT id FROM dge_identity.tenants WHERE id=$1 FOR ${write?'UPDATE':'SHARE'}`,[tenantId]);
     deny(tenant.rows.length);
@@ -86,31 +100,73 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       const account=await db.query(`INSERT INTO dge_identity.accounts(id,issuer,subject,created_at) VALUES($1,$2,$3,$4)
         ON CONFLICT(issuer,subject) DO UPDATE SET subject=excluded.subject RETURNING id,status,auth_epoch`,[randomUUID(),issuer,subject,now()]);
       deny(account.rows[0].status==='active');
+      await db.query(`UPDATE dge_identity.sessions SET revoked_at=$2 WHERE token_digest IN (
+        SELECT token_digest FROM dge_identity.sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
+        ORDER BY created_at DESC,token_digest DESC OFFSET $3)`,[account.rows[0].id,issuedAt,maxSessions-1]);
       const sessionToken=token(),csrfToken=token(),expiresAt=new Date(now().getTime()+sessionSeconds*1000);
       await db.query('INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at,authenticated_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[digest('session',sessionToken),account.rows[0].id,account.rows[0].auth_epoch,digest('csrf',csrfToken),issuedAt,expiresAt,new Date(authenticatedAt)]);
       return {accountId:account.rows[0].id,sessionToken,csrfToken,expiresAt:expiresAt.toISOString()};
     }),
     account:sessionToken=>transaction(async db=>({accountId:(await session(db,{sessionToken})).id})),
+    sessionInfo:sessionToken=>transaction(async db=>{
+      const actor=await session(db,{sessionToken});
+      return {accountId:actor.id,expiresAt:new Date(actor.expires_at).toISOString(),authenticatedAt:new Date(actor.authenticated_at).toISOString()};
+    }),
+    organizations:(credentials,{after=null,limit=100}={})=>transaction(async db=>{
+      deny((after===null||uuid(after))&&Number.isSafeInteger(limit)&&limit>=1&&limit<=200);
+      const actor=await session(db,credentials);
+      await db.query("SELECT set_config('dge.account_id',$1,true)",[actor.id]);
+      const rows=(await db.query('SELECT tenant_id AS "tenantId",role FROM dge_identity.memberships WHERE account_id=$1 AND active=true AND ($2::uuid IS NULL OR tenant_id>$2::uuid) ORDER BY tenant_id LIMIT $3',[actor.id,after,limit+1])).rows;
+      return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].tenantId:null};
+    }),
+    // Trusted server extension boundary: authorization and the operation share one transaction.
+    withTenant:(credentials,tenantId,{write=false,recent=false,roles=['owner','admin','editor','participant','viewer']}={},operation)=>transaction(async db=>{
+      deny(typeof operation==='function'&&Array.isArray(roles)&&roles.every(role));
+      const actor=await tenantContext(db,credentials,tenantId,write,recent);deny(roles.includes(actor.role));
+      return operation(db,{accountId:actor.id,role:actor.role,tenantId});
+    }),
     createTenant:credentials=>transaction(async db=>{
-      const actor=await session(db,credentials,true,true),id=randomUUID();await scope(db,id);
+      const actor=await session(db,credentials,true,true),id=randomUUID();
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['workspace-create:'+actor.id]);
+      await db.query("SELECT set_config('dge.account_id',$1,true)",[actor.id]);
+      const owned=(await db.query("SELECT count(*)::int AS n FROM dge_identity.memberships WHERE account_id=$1 AND role='owner' AND active=true",[actor.id])).rows[0].n;
+      deny(owned<maxOwnedWorkspaces,'WORKSPACE_LIMIT_REACHED');await scope(db,id);
       await db.query('INSERT INTO dge_identity.tenants(id,created_at) VALUES($1,$2)',[id,now()]);
       await db.query("INSERT INTO dge_identity.memberships(tenant_id,account_id,role,updated_at) VALUES($1,$2,'owner',$3)",[id,actor.id,now()]);
       await event(db,id,actor.id,actor.id,'tenant-created');return {tenantId:id};
     }),
     members:(credentials,tenantId,{after=null,limit=100}={})=>transaction(async db=>{
       deny((after===null||uuid(after))&&Number.isSafeInteger(limit)&&limit>=1&&limit<=200);
-      await tenantContext(db,credentials,tenantId);
+      const actor=await tenantContext(db,credentials,tenantId);
       const rows=(await db.query('SELECT account_id AS "accountId",role FROM dge_identity.memberships WHERE tenant_id=$1 AND active=true AND ($2::uuid IS NULL OR account_id>$2::uuid) ORDER BY account_id LIMIT $3',[tenantId,after,limit+1])).rows;
-      return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].accountId:null};
+      return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].accountId:null,viewerRole:actor.role};
     }),
     invite:(credentials,tenantId,accountId,requestedRole)=>transaction(async db=>{
       const actor=await tenantContext(db,credentials,tenantId,true);manage(actor);
       deny(uuid(accountId)&&role(requestedRole)&&requestedRole!=='owner');
       if(requestedRole==='admin')deny(actor.role==='owner');
       const target=await db.query("SELECT id FROM dge_identity.accounts WHERE id=$1 AND status='active'",[accountId]);deny(target.rows.length);
+      const pending=(await db.query('SELECT count(*)::int AS n FROM dge_identity.invitations WHERE tenant_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>$2',[tenantId,now()])).rows[0].n;
+      deny(pending<maxPendingInvitations,'INVITATION_LIMIT_REACHED');
       const invitationToken=token();
-      await db.query('INSERT INTO dge_identity.invitations(token_digest,tenant_id,account_id,role,expires_at) VALUES($1,$2,$3,$4,$5)',[digest('invite',invitationToken),tenantId,accountId,requestedRole,new Date(now().getTime()+86400000)]);
-      await event(db,tenantId,actor.id,accountId,'invited');return {invitationToken};
+      const invitationId=randomUUID(),expiresAt=new Date(now().getTime()+86400000);
+      await db.query('INSERT INTO dge_identity.invitations(id,token_digest,tenant_id,account_id,role,expires_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[invitationId,digest('invite',invitationToken),tenantId,accountId,requestedRole,expiresAt,actor.id]);
+      await event(db,tenantId,actor.id,accountId,'invited');return {invitationToken,invitationId,expiresAt:expiresAt.toISOString()};
+    }),
+    invitations:(credentials,tenantId,{after=null,limit=100}={})=>transaction(async db=>{
+      deny((after===null||uuid(after))&&Number.isSafeInteger(limit)&&limit>=1&&limit<=200);
+      const actor=await tenantContext(db,credentials,tenantId);manage(actor);
+      const rows=(await db.query(`SELECT id,"account_id" AS "accountId",role,expires_at AS "expiresAt",created_by AS "createdBy" FROM dge_identity.invitations
+        WHERE tenant_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>$2 AND ($3::uuid IS NULL OR id>$3::uuid) ORDER BY id LIMIT $4`,[tenantId,now(),after,limit+1])).rows;
+      return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null};
+    }),
+    revokeInvitation:(credentials,tenantId,invitationId)=>transaction(async db=>{
+      const actor=await tenantContext(db,credentials,tenantId,true);manage(actor);deny(uuid(invitationId));
+      const invitation=(await db.query('SELECT account_id,role,consumed_at,revoked_at FROM dge_identity.invitations WHERE id=$1 AND tenant_id=$2 FOR UPDATE',[invitationId,tenantId])).rows[0];deny(invitation);
+      if(invitation.role==='admin')deny(actor.role==='owner');
+      deny(!invitation.consumed_at,'INVITATION_ALREADY_USED');
+      if(!invitation.revoked_at){await db.query('UPDATE dge_identity.invitations SET revoked_at=$3 WHERE id=$1 AND tenant_id=$2',[invitationId,tenantId,now()]);await event(db,tenantId,actor.id,invitation.account_id,'invitation-revoked');}
+      return {revoked:true};
     }),
     acceptInvitation:(credentials,tenantId,invitationToken)=>transaction(async db=>{
       const actor=await session(db,credentials,true,true);deny(isToken(invitationToken));await scope(db,tenantId);
@@ -120,7 +176,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       const existing=await db.query('SELECT active FROM dge_identity.memberships WHERE tenant_id=$1 AND account_id=$2',[tenantId,actor.id]);deny(!existing.rows[0]?.active);
       await db.query(`INSERT INTO dge_identity.memberships(tenant_id,account_id,role,updated_at) VALUES($1,$2,$3,$4)
         ON CONFLICT(tenant_id,account_id) DO UPDATE SET active=true,role=excluded.role,updated_at=excluded.updated_at`,[tenantId,actor.id,invitation.rows[0].role,now()]);
-      await event(db,tenantId,actor.id,actor.id,'joined');return {joined:true};
+      await event(db,tenantId,actor.id,actor.id,'joined');return {joined:true,tenantId,role:invitation.rows[0].role};
     }),
     changeMember:(credentials,tenantId,accountId,nextRole)=>transaction(async db=>{
       const actor=await tenantContext(db,credentials,tenantId,true);manage(actor);deny(uuid(accountId)&&(nextRole===null||role(nextRole)));

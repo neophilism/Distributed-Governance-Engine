@@ -1,0 +1,41 @@
+{
+  "unit": "DCE-002",
+  "scope": "partial account HTTP/UI and direct TLS server",
+  "observedAt": "2026-10-17T12:28:29.600033+00:00",
+  "sourceFiles": {
+    "server/identity-store.mjs": "9bc450e4dad29732da2ee4a0b934dfc665c344ca50bc68a3ac361a38d741e446",
+    "server/oidc-login.mjs": "5c5e7058eed64a8ca5f8e30302f038c9acbfdbd693ca6ccab4e1ebafba13d4e2",
+    "server/account-http.mjs": "02d9fc875d9071d7c80b3666336ee42b2be8f5c8c60a5b56e321b4bc2858b24a",
+    "server/application.mjs": "aa8e386be3a8f4841b69f32ec06f875b6a600923d9212aadf2d3520fc1bff30d",
+    "server/start.mjs": "ebd2245d8b37f827872933cbaf4ca0a2daab771758e768d0cba393d765430c60",
+    "scripts/migrate-identity.mjs": "c95712e80358c4bdb24d9fb93a4f0ce56c15cc82aaa78839de1ffeca04650ffe",
+    "migrations/003-account-directory.sql": "0419a5927351708607c18700710a4a4cb7e71bbc111a39ec7391fe1fa4aaf01b",
+    "web/account-api.mjs": "c164e04e45467b789940aa1e5021db5bdebcbe820dd389349736a3a793700b76",
+    "web/account-panel.jsx": "87ee9e28d252943de20c621fa981b40ebf2e3333717c824e3eebd5a6a012bb54",
+    "web/invitations.jsx": "ed080df1f70662ceb8868f753664f85018ec11dde1b702b94f7a4279d2eb80e5",
+    "tests/account-http.test.mjs": "d4291bf4eba6c4835d48f49846ed0a7dc476df2986971182a2d675e919bb6e62",
+    "tests/account.browser.mjs": "822f3cbc6c206838dfb8d4e5bd595d8de83b129650f3038ee49f3c8b0b2746e2",
+    "tests/support/account-fixture.mjs": "533bc7050166b84e9c631a6fc86f7e385f64daff92ff9e9348e612572d331b16",
+    "tests/identity-postgres.integration.mjs": "cc5eac835c6e1fcd19d172ec79b09d51e33e5a6a2a555ec322e2b611010109a2",
+    ".github/workflows/verify.yml": "faf7e48a711d3915ab2bb6fbee059e3f484750d090de55a564d1d375cf374212",
+    "package-lock.json": "9854417ae3498371e145cc50bc59ddb06fd4ac9e2820eeb99ce20ad6ff8476f6"
+  },
+  "localChecks": {
+    "command": "npm run check; npm run build; npm run test:browser",
+    "tests": 114,
+    "generatedCases": 2000,
+    "browser": "HeadlessChrome/155.0.8059.84",
+    "browserJourney": "actual HTTPS app/store/UI with synthetic signed OIDC provider; workspace create/join/role/remove/revoke",
+    "mobileHorizontalOverflow": false
+  },
+  "networkPostgres": "required CI check; not run locally without a disposable service",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Real provider/deployment acceptance pending",
+    "Passkeys, account recovery and encryption-device trust incomplete",
+    "Only per-process availability budgets; distributed abuse controls and retention incomplete",
+    "No saved/private documents in this contribution",
+    "Test browser trusts an ephemeral local certificate and disables sandbox solely for synthetic fixtures"
+  ]
+}
