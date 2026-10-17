@@ -17,6 +17,11 @@ import {
   applyIdentityMigrations,
 } from "../../server/identity-store.mjs";
 import { createOIDCLogin } from "../../server/oidc-login.mjs";
+import { createDiscussionStore } from "../../server/discussion-store.mjs";
+import {
+  createDiscussionRoutes,
+  discussionBodyLimit,
+} from "../../server/discussion-http.mjs";
 import { createProposalStore } from "../../server/proposal-store.mjs";
 import {
   createProposalRoutes,
@@ -41,7 +46,13 @@ const escape = (value) =>
         ch
       ],
   );
-export async function accountFixture() {
+export async function accountFixture({
+  proposalListDelayMs = 0,
+  documentListDelayMs = 0,
+} = {}) {
+  for (const delay of [proposalListDelayMs, documentListDelayMs])
+    if (!Number.isSafeInteger(delay) || delay < 0 || delay > 1000)
+      throw Error("Invalid fixture delay");
   const temporary = await mkdtemp(join(tmpdir(), "dge-fixture-tls-"));
   let key, cert;
   try {
@@ -185,6 +196,12 @@ export async function accountFixture() {
       login,
       origin,
       extensions: [
+        createDiscussionRoutes({
+          discussion: createDiscussionStore({
+            identity: store,
+            transaction: transaction,
+          }),
+        }),
         createProposalRoutes({
           proposals: createProposalStore({
             identity: store,
@@ -200,11 +217,34 @@ export async function accountFixture() {
   listener = nodeListener({
     origin,
     bodyLimit: (path) =>
-      Math.max(documentBodyLimit(path), proposalBodyLimit(path)),
+      Math.max(
+        documentBodyLimit(path),
+        proposalBodyLimit(path),
+        discussionBodyLimit(path),
+      ),
     application: async (request, context) => {
       const url = new URL(request.url);
-      if (url.pathname !== "/fixture/authorize")
+      if (url.pathname !== "/fixture/authorize") {
+        if (
+          documentListDelayMs &&
+          request.method === "GET" &&
+          /^\/api\/workspaces\/[a-f0-9-]{36}\/documents$/.test(url.pathname)
+        )
+          await new Promise((resolve) =>
+            setTimeout(resolve, documentListDelayMs),
+          );
+        if (
+          proposalListDelayMs &&
+          request.method === "GET" &&
+          /^\/api\/public\/documents\/[a-f0-9-]{36}\/proposals$/.test(
+            url.pathname,
+          )
+        )
+          await new Promise((resolve) =>
+            setTimeout(resolve, proposalListDelayMs),
+          );
         return application(request, context);
+      }
       const params = url.searchParams;
       if (
         params.get("client_id") !== clientId ||

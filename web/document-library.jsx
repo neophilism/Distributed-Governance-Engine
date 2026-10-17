@@ -13,9 +13,12 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
     [title, setTitle] = useState(""),
     [disclosed, setDisclosed] = useState(false),
     [busy, setBusy] = useState(false),
+    [directoryLoading, setDirectoryLoading] = useState(false),
+    [documentsLoading, setDocumentsLoading] = useState(false),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
   const pendingCreation = useRef(null);
+  const loading = directoryLoading || documentsLoading;
   const role = workspaces.find((w) => w.tenantId === workspace)?.role;
   const report = (cause) =>
     setError(
@@ -32,14 +35,13 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
                 : "The document service could not complete this request. Try again.",
     );
   useEffect(() => {
-    if (!open) return;
-    const controller = new AbortController();
-    setBusy(true);
-    setError("");
-    if (!pendingCreation.current) {
-      setTitle(currentDocument.metadata.title);
-      setDisclosed(false);
+    if (!open) {
+      setDirectoryLoading(false);
+      return;
     }
+    const controller = new AbortController();
+    setDirectoryLoading(true);
+    setError("");
     api("/api/workspaces", { signal: controller.signal })
       .then((result) => {
         setWorkspaces(result.items);
@@ -54,17 +56,18 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
         if (cause.name !== "AbortError") report(cause);
       })
       .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
+        if (!controller.signal.aborted) setDirectoryLoading(false);
       });
     return () => controller.abort();
   }, [open, refresh]);
   useEffect(() => {
     if (!open || !workspace) {
       setItems([]);
+      setDocumentsLoading(false);
       return;
     }
     const controller = new AbortController();
-    setBusy(true);
+    setDocumentsLoading(true);
     setItems([]);
     setCursor(null);
     api(`/api/workspaces/${workspace}/documents`, { signal: controller.signal })
@@ -76,7 +79,7 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
         if (cause.name !== "AbortError") report(cause);
       })
       .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
+        if (!controller.signal.aborted) setDocumentsLoading(false);
       });
     return () => controller.abort();
   }, [open, workspace, refresh]);
@@ -152,6 +155,10 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
       <button
         data-tour="documents"
         onClick={() => {
+          if (!open && !pendingCreation.current) {
+            setTitle(currentDocument.metadata.title);
+            setDisclosed(false);
+          }
           setOpen((value) => !value);
           window.dispatchEvent(new Event("quill-open-documents"));
         }}
@@ -167,15 +174,20 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
             <h2>Your documents</h2>
             <button onClick={() => setOpen(false)}>Close documents</button>
           </div>
-          <p role="status">{busy ? "Loading documents…" : error}</p>
-          <button disabled={busy} onClick={() => setRefresh((x) => x + 1)}>
+          <p role="status">
+            {busy ? "Publishing…" : loading ? "Loading documents…" : error}
+          </p>
+          <button
+            disabled={busy || loading}
+            onClick={() => setRefresh((x) => x + 1)}
+          >
             Refresh documents
           </button>
           <label>
             Your document workspace
             <select
               value={workspace}
-              disabled={busy || !!pendingCreation.current}
+              disabled={busy || loading || !!pendingCreation.current}
               onChange={(event) => setWorkspace(event.target.value)}
             >
               {workspaces.map((item) => (
@@ -187,7 +199,7 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
           </label>
           {workspaceCursor && (
             <button
-              disabled={busy}
+              disabled={busy || loading}
               onClick={() =>
                 perform(async () => {
                   const result = await api(
@@ -205,7 +217,7 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
             {items.map((item) => (
               <li key={item.id}>
                 <button
-                  disabled={busy}
+                  disabled={busy || loading}
                   onClick={() => perform(() => openDocument(item.id))}
                 >
                   {item.title || "Untitled document"}{" "}
@@ -221,7 +233,7 @@ export function DocumentLibrary({ currentDocument, onOpen, notify }) {
           </ul>
           {cursor && (
             <button
-              disabled={busy}
+              disabled={busy || loading}
               onClick={() =>
                 perform(async () => {
                   const result = await api(

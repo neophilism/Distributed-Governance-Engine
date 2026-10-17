@@ -1,0 +1,47 @@
+{
+  "units": [
+    "DCE-015",
+    "DCE-016"
+  ],
+  "scope": "partial public structured points/counterclaims and independent account argument ratings",
+  "observedAt": "2026-10-17T13:28:28.991637+00:00",
+  "sourceFiles": {
+    "migrations/006-structured-points.sql": "ef4233f873fa28dba2d82bb817e6dd559d42f2eb0fb83bd2e6e696427feb0bf3",
+    "src/discussion.mjs": "f1973a53346be8fb0f2512d1147ebc41748cd8c3b218d24b4afd0409ce40f3f7",
+    "server/discussion-store.mjs": "2dc8ba3c6e6cec6f6bacf23a25c112017f797a9ffc40f7c0fbd1f61bb57b9e49",
+    "server/discussion-http.mjs": "ab4ccb3ae4c6e0f2ad2a2cfe37439417dff32351fb83315452570a88f463703f",
+    "server/account-http.mjs": "f6dd0d6596d62a4c3c2410f0ceda3d3bee61ea8fdd1f19a1cc4d0525555e72f7",
+    "server/identity-store.mjs": "406ef5fef42f1b1918ad68d21720cb17bafa3561683407545d0631bf2d2c0076",
+    "server/start.mjs": "176c9044b732b52b7783e735ea17d1ee84f835d5442d93dcbb768f5b4afda747",
+    "web/discussion-panel.jsx": "d23345524a8cd59efe2b607e93da71c3ee4606abaaea109f765ba59bad920ad1",
+    "web/proposal-panel.jsx": "e339ced211905c4cca6985be1c8b6f8d163a0dd71cfd38346ef81fcf25696ed2",
+    "web/app.jsx": "a02f59a1be243ca961537bf4647d6c8e8c99a50f7f891ff1913c63a71cd16baa",
+    "tests/discussion.test.mjs": "b7b55e6b9efa5e40ca4f0a83f20af7beb7826548f7be9d709d1957433251967b",
+    "tests/discussion.browser.mjs": "2126b1f695a42e35744fc047c45f472824a18df4343370a5b489db656a37a0eb",
+    "tests/identity-postgres.integration.mjs": "dc6c9ca6f462fec1863f8ad93c084f4f66d98c7bd38b6e34a009e805eb78324e",
+    "web/document-library.jsx": "3345301f3615286f4f61d3a991a39a49835b54d1234e5bf35ba13f3385ead95e",
+    "tests/documents.browser.mjs": "4711014043825ce53d3c607d68a3cdf9be9c05f798f8252a4f57d1b6e1734764",
+    "tests/support/account-fixture.mjs": "05d8e1a5bfb2e634e33b6387fb45d1a8b822acfdc0a3a2a072445989a34d28d8"
+  },
+  "localChecks": {
+    "tests": 147,
+    "generatedCases": 2000,
+    "browserJourneys": 3,
+    "browser": "HeadlessChrome/155.0.8059.84",
+    "desktopMobile": "inspected; no horizontal overflow",
+    "browserCoverage": "two real OIDC flows, typed pro/con/counterclaims, up/down/withdraw, self-vote UI, anonymous read, fixed source",
+    "delayedReadRegression": "200 ms document/proposal list delays; exact title, replacement and rationale keystrokes preserved"
+  },
+  "networkedPostgres": "required CI tests concurrent duplicate and opposing vote updates, conservation and private history; not run locally",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Workspace contributors only; public admission policy pending",
+    "Account votes do not establish unique people, reputation, consensus or legal authority",
+    "Current points are immutable; editable point history, merges, moderation and appeals incomplete",
+    "Point voter identities/choices visible to service/database; public API shows counts only",
+    "Pending public score commitments are not blockchain receipts",
+    "Private content encryption, decision ballots/adoption and production acceptance remain pending"
+  ],
+  "ciFollowup": "Initial CI passed 147 tests, 2,000 generated cases and 8 networked PostgreSQL checks but exposed dropped keystrokes while background reads disabled a Chrome draft form. Delayed 200 ms reads reproduce the old failure and pass after separating loading/publication state. Fresh exact-head CI is required before merge."
+}

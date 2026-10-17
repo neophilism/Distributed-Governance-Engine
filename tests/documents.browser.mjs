@@ -63,7 +63,10 @@ test(
   "Chrome publishes, saves, reopens and shares public legal text, preserves conflicting work and freezes public-input source",
   { timeout: 90000 },
   async () => {
-    const fixture = await accountFixture();
+    const fixture = await accountFixture({
+      proposalListDelayMs: 200,
+      documentListDelayMs: 200,
+    });
     let browser;
     try {
       browser = await puppeteer.launch({
@@ -89,6 +92,18 @@ test(
       assert.equal(
         await owner.$eval(".public-create button", (b) => b.disabled),
         true,
+      );
+      await owner.type(
+        '.public-create input:not([type="checkbox"])',
+        " — reviewed",
+      );
+      assert.equal(
+        await owner.$eval(
+          '.public-create input:not([type="checkbox"])',
+          (element) => element.value,
+        ),
+        "Community Reporting Act — reviewed",
+        "Background document loading must not drop title keystrokes.",
       );
       await owner.click('.public-create input[type="checkbox"]');
       await click(owner, "Publish current text");
@@ -229,6 +244,22 @@ test(
       await owner.type(
         ".proposal-composer textarea[required]",
         "More frequent reporting improves accountability.",
+      );
+      assert.equal(
+        await owner.$eval(
+          ".proposal-composer textarea",
+          (element) => element.value,
+        ),
+        "quarterly",
+        "Background suggestion loading must not drop replacement keystrokes.",
+      );
+      assert.equal(
+        await owner.$eval(
+          ".proposal-composer textarea[required]",
+          (element) => element.value,
+        ),
+        "More frequent reporting improves accountability.",
+        "Background loading must not disable the rationale field.",
       );
       await owner.click('.proposal-composer input[type="checkbox"]');
       await click(owner, "Publish suggestion");

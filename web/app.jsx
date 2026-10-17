@@ -152,6 +152,8 @@ function Tour({ onClose }) {
         "Review the exact suggested change",
         "Compare before and after wording and the rationale. Public-input source text remains fixed.",
       ],
+      ['points','Build an organized argument','Keep supporting, opposing and clarifying points separate. Replies explain whether they support, challenge or clarify their parent.'],
+      ['point-vote','Rank the point itself','Upvotes minus downvotes determine the net score. These argument ratings leave the source wording unchanged.'],
       [
         "history",
         "Inspect earlier public versions",

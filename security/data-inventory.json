@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "status": "partial-implementation-not-deployed",
   "flows": [
     {
@@ -34,12 +34,16 @@
         "explicitly disclosed public drafts and all saved versions",
         "public source/schema/document/workspace IDs",
         "version/digest/timestamp metadata",
-        "consented public replacement proposals and rationales with exact source bindings"
+        "consented public replacement proposals and rationales with exact source bindings",
+        "consented public concise points, typed replies and evidence URLs",
+        "aggregate argument up/down counts and ordering generations"
       ],
       "internalOnly": [
         "author account ID",
         "command ID and request digest",
-        "identity provider subject and session data"
+        "identity provider subject and session data",
+        "point-author account IDs",
+        "individual point-voter IDs/choices and audit records"
       ],
       "anchoringStatus": "pending outbox only; no chain transaction/receipt"
     },
@@ -57,7 +61,10 @@
         "eligible client"
       ],
       "services": "restricted and minimized; vote-privacy profile explicit",
-      "onChain": false
+      "onChain": false,
+      "implementedAssets": [
+        "service-visible argument-rating identities and current/history values; public totals only"
+      ]
     },
     {
       "id": "identity-payment",
