@@ -106,7 +106,7 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
 
 export function documentIssues(document) {
  const doc=validateLegalDocument(document),ids=new Set([doc.id]),references=[];
- function visit(node){ids.add(node.id);for(const run of node.inlines??[])if(run.kind!=='text')references.push({sourceId:node.id,...run});for(const child of node.children??[])visit(child);}
+ function visit(node){ids.add(node.id);for(const run of node.inlines??[])if(['reference','footnote-reference'].includes(run.kind))references.push({sourceId:node.id,...run});for(const child of node.children??[])visit(child);}
  doc.content.forEach(visit);
  return references.filter(r=>!ids.has(r.targetId)).map(r=>({code:'UNRESOLVED_REFERENCE',sourceId:r.sourceId,targetId:r.targetId}));
 }
