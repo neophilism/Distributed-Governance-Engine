@@ -58,7 +58,7 @@ function validateCitationMetadata(value) {
 export function normalizeCitationMetadata(value) {
  if(value===undefined||value===null)return null;
  fields(value,['publisher','publishedOn','pinpoint','accessedOn']);const next={};
- for(const key of ['publisher','publishedOn','pinpoint','accessedOn'])if(typeof value[key]==='string'&&value[key].trim())next[key]=value[key].trim();
+ for(const key of ['publisher','publishedOn','pinpoint','accessedOn'])if(Object.hasOwn(value,key)){invariant(typeof value[key]==='string','Citation metadata values must be strings');if(value[key].trim())next[key]=value[key].trim();}
  validateCitationMetadata(next);return freeze(next);
 }
 function validateInlines(inlines,refs,schemaVersion) {
