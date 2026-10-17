@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 16,
+  "roadmapVersion": 17,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T22:49:00Z",
+  "observedAt": "2026-10-17T23:28:30Z",
   "units": [
     {
       "id": "DCE-001",
@@ -125,7 +125,8 @@
         5,
         8,
         14,
-        15
+        15,
+        16
       ]
     },
     {
@@ -1097,16 +1098,31 @@
       "id": 4904584959,
       "number": 15,
       "title": "DCE-005: Edit and remove external inline sources (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/15",
       "createdAt": "2026-10-17T22:48:08Z",
-      "updatedAt": "2026-10-17T22:48:08Z",
+      "updatedAt": "2026-10-17T22:52:50Z",
+      "mergedAt": "2026-10-17T22:52:50Z",
+      "closedAt": "2026-10-17T22:52:50Z",
+      "draft": false,
+      "headSha": "520842f59de7ecd14a7d19f247b31ec60cc7e1ab",
+      "baseRef": "main",
+      "mergeCommitSha": "e1e396097d1a30c90d0cb81fdb3351ef95c1125a"
+    },
+    {
+      "id": 4904818047,
+      "number": 16,
+      "title": "DCE-005: Verify IME input and interrupted save recovery",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/16",
+      "createdAt": "2026-10-17T23:27:22Z",
+      "updatedAt": "2026-10-17T23:27:22Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "9972826f06785359babc5d9ca5377c883705afe1",
+      "headSha": "6d4b56613d3003454c8432dc0b5f3eb4f1fff8c7",
       "baseRef": "main",
-      "mergeCommitSha": "71c922f6f10c0174357ed0b7a2c7b33e60543eca"
+      "mergeCommitSha": "f6d46a83829af6d9d27b6726ae1fc9e634a70aa8"
     }
   ]
 }
