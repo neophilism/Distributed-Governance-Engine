@@ -262,6 +262,36 @@ export function createAccountHandler({
         if (url.search) throw new HttpError(400, "INVALID_QUERY");
         return json(await store.sessionInfo(credentials.sessionToken));
       }
+      if (url.pathname === "/api/recovery-codes") {
+        method(["POST"]);
+        write();
+        await boundedJson(request, []);
+        return json(await store.issueRecoveryCodes(credentials), 201);
+      }
+      if (url.pathname === "/api/recovery-session") {
+        method(["POST"]);
+        if (credentials.origin !== origin)
+          throw new HttpError(403, "REQUEST_PROTECTION_REQUIRED");
+        const body = await boundedJson(request, ["accountId", "recoveryCode"]);
+        const result = await store.recoverAccount(
+          body.accountId,
+          body.recoveryCode,
+        );
+        const maxAge = Math.max(
+          0,
+          Math.min(
+            900,
+            Math.floor((Date.parse(result.expiresAt) - Date.now()) / 1000),
+          ),
+        );
+        return cookiesResponse(
+          json({ recovered: true, recoveryRestricted: true }),
+          [
+            sessionCookie(result.sessionToken, { maxAge }),
+            `__Host-dge_csrf=${result.csrfToken}; Path=/; Secure; SameSite=Strict; Max-Age=${maxAge}`,
+          ],
+        );
+      }
       if (
         url.pathname === "/api/logout" ||
         url.pathname === "/api/logout-all"

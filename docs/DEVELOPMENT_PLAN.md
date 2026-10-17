@@ -54,6 +54,8 @@ DCE-004 is implemented in actual merged PR #2. The editor foundation contributes
 
 DCE-002 has a partial server implementation for OIDC login, persisted sessions, membership/invitations, scoped database permissions and audit events. See IDENTITY_FOUNDATION.md and decisions/0002-low-cost-identity.md. Recovery, passkey/device assurance and deployment acceptance remain planned. HTTP/account UI integration now has a TLS browser test with a synthetic provider, pending production acceptance. No hosted service or paid resource is created for this contribution.
 
+The recovery contribution adds rotating, single-use recovery codes, atomic session invalidation, a short read-only recovery session and minimal security-event evidence. It deliberately does not treat recovery as recent OIDC authentication or encrypted-device enrollment. Full provider-loss restoration, passkeys/device assurance and production acceptance remain planned.
+
 DCE-005 also includes literal body-text find/replace, bounded replace-all with one-step undo, Unicode-aware positions, safe failures and readonly search. Inline links/citations, authenticated save and real-browser/IME/network/accessibility acceptance remain unfinished. Local DOM interaction tests do not establish real-browser layout or screen-reader behavior.
 
 The DCE-002 authentication-time follow-up binds privileged-action freshness to verified provider authentication time, preserves migration 001, and adds ordered migration 002. Legacy sessions without this evidence require a fresh login. Tests cover time-window extension, backward-clock handling and preservation of old account/session records during upgrade.

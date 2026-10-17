@@ -50,6 +50,19 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const members=await store.members(remainingOwner,tenantId);assert.equal(members.items.some(x=>x.accountId===c.accountId),results[0].status==='fulfilled');
     const record=(await owner.query('SELECT consumed_at,revoked_at FROM dge_identity.invitations WHERE id=$1',[pending.invitationId])).rows[0];assert.notEqual(Boolean(record.consumed_at),Boolean(record.revoked_at));
   });
+  await t.test('a recovery code creates one restricted session under concurrent redemption',async()=>{
+    const recoveryUser=await user(),codes=await store.issueRecoveryCodes(recoveryUser);
+    const results=await Promise.allSettled([
+      store.recoverAccount(recoveryUser.accountId,codes.recoveryCodes[0]),
+      store.recoverAccount(recoveryUser.accountId,codes.recoveryCodes[0]),
+    ]);
+    assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+    assert.ok(results.find(x=>x.status==='rejected').reason instanceof AccessError);
+    const recovered=results.find(x=>x.status==='fulfilled').value;
+    assert.equal((await store.sessionInfo(recovered.sessionToken)).recoveryRestricted,true);
+    await assert.rejects(store.createTenant({...recovered,origin:'https://quill.example'}),AccessError);
+    await store.logout({...recovered,origin:'https://quill.example'});
+  });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
     const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
     const document=createLegalDocument({id:randomUUID(),tenantId,title:'Parallel document'});
