@@ -1,0 +1,29 @@
+{
+  "kind": "local-editor-contribution",
+  "completedAt": "2026-10-17T03:08:19.211572+00:00",
+  "commands": [
+    "npm ci --ignore-scripts",
+    "npm run check",
+    "npm run build",
+    "npm audit --audit-level=high"
+  ],
+  "tests": 63,
+  "propertyScenarios": 2000,
+  "dependencyAuditVulnerabilities": 0,
+  "scope": [
+    "shared React/ProseMirror editor",
+    "semantic round trips",
+    "format commands and undo/redo",
+    "stable IDs and rendered numbering",
+    "paste safety",
+    "read-only transaction guard",
+    "public sample cache",
+    "mounted editor DOM integration",
+    "built React interface brand/mode/tour flows"
+  ],
+  "limits": [
+    "jsdom is not actual browser visual/accessibility verification",
+    "no production account or durable save",
+    "no private-content encryption, real voting/signing/payment/anchor"
+  ]
+}

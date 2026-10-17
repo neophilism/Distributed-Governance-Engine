@@ -1,0 +1,11 @@
+# Shared Quill editor foundation — DCE-005 contribution
+
+The React/ProseMirror editor uses the same portable legal-structure validator as the engine. Semantic IDs, references, section titles, basic marks, lists, rectangular tables, definitions, exhibits and footnotes survive the editor adapter. New/split blocks receive unique IDs. Editor transactions that would directly change public-input, published, adopted or signed editions are rejected at both state and controller boundaries.
+
+Included controls: bold/italic/underline/strike; undo/redo and keyboard shortcuts; numbered/bulleted lists; section and table insertion; outline navigation; native spellcheck; working-copy JSON/plain-text download; print styling; mode-specific read-only preview; accessible live status and anchored walkthrough. The same entry point can demonstrate CivicQuill and CharterQuill with related branding. The brand selector has no authorization authority.
+
+Recovery is opt-in and restricted to the explicitly public sample. Storage failure/corruption and tenant/product/document mismatches remain visible. Private organization drafts require the planned encrypted cache adapter; this code does not claim an E2EE or confidential storage implementation. No account, payment, real proposal/vote, legally finalized signature or network save is offered in the preview.
+
+Build: `npm ci --ignore-scripts`, `npm run check`, `npm run build`. The output is dist/. CI installs the exact lockfile, runs real model/DOM tests and the domain/property suites, then compiles the browser bundle. npm audit is run during development and its scope is recorded; a clean dependency audit is not a general security guarantee. The bundle contains no Node-only hashing imports.
+
+This is a contribution to DCE-005, not a claim that all editor acceptance criteria are complete. Remaining editor work includes inline link/citation UI, explicit IME/browser/network-loss verification, the authenticated durable save/recovery adapter, measured rendering/accessibility checks and production integration. Human review remains deferred per the owner. Browser visual/screen-reader QA has not been completed in this environment. DOM integration tests verify mounting, text changes and read-only enforcement without claiming actual browser layout validation.

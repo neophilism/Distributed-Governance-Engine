@@ -49,3 +49,5 @@ The only machine-readable plan is registry/prs.json (39 units). Detailed impleme
 Proceed in dependency order. After each real PR, validate, fix failures, merge only when live GitHub current-head checks and merge preflight permit, update mappings/evidence and continue. Never make human review a development prerequisite. Capacity, required credentials and spending are concrete states; continue independent ready work when one is unavailable.
 
 Release gates: exact-head required CI; applicable security/authorization/accessibility/migration/browser/load tests; isolated approved infrastructure; authentic deployed commit and health evidence; real multiuser and independent artifact-verification journeys. Final human review occurs after deployment, without inventing independent review or certification evidence.
+
+DCE-004 is implemented in actual merged PR #2. The editor foundation contributes to DCE-005; inline link UI, authenticated durable save, IME/network/browser/accessibility evidence and production integration remain incomplete. Contributions must never count as completed unit acceptance.

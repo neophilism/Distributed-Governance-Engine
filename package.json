@@ -10,7 +10,29 @@
     "test": "node --test tests/*.test.mjs registry/pr-contract.test.mjs",
     "test:fuzz": "node scripts/fuzz.mjs",
     "check": "node scripts/validate-pr-registry.mjs && node scripts/validate-security.mjs && npm test && npm run test:fuzz",
-    "demo": "node demo/server.mjs"
+    "demo": "node demo/server.mjs",
+    "build": "node scripts/build-editor.mjs",
+    "preview": "node scripts/serve-editor.mjs"
   },
-  "exports": "./src/index.mjs"
+  "exports": {
+    ".": "./src/index.mjs",
+    "./legal-structure": "./src/legal-structure.mjs",
+    "./editor": "./editor/model.mjs",
+    "./draft-cache": "./editor/draft-cache.mjs"
+  },
+  "dependencies": {
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-history": "1.5.1",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-model": "1.25.12",
+    "prosemirror-schema-list": "1.5.1",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-view": "1.42.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "30.1.3"
+  }
 }

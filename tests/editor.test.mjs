@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import {TextSelection} from 'prosemirror-state';
+import {createLegalDocument,publicInputEdition,finalizeLegalDocument} from '../src/legal-structure.mjs';
+import {legalToEditor,editorToLegal,createLegalEditorState,applyLegalTransaction,commands,appendSection,appendTable,parsePastedHTML,renderedFragment,mountLegalEditor} from '../editor/model.mjs';
+const draft=()=>({...structuredClone(createLegalDocument({id:'draft',tenantId:'org',title:'Draft bill'})),content:[{kind:'section',id:'s1',title:'Reporting',children:[{kind:'paragraph',id:'p1',inlines:[{kind:'text',text:'Report annually.',marks:['bold']}]},{kind:'paragraph',id:'p2',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'s1',label:'section 1'}]}]}]});
+test('the editor round-trips legal IDs, exact text, marks and cross-references',()=>{const d=draft();assert.deepEqual(editorToLegal(legalToEditor(d),d),d);});
+test('actual edit transactions increment the revision without mutating the old edition',()=>{const d=draft(),s=createLegalEditorState(d),r=applyLegalTransaction(s,s.tr.insertText('A ',2),d);assert.equal(r.changed,true);assert.equal(r.document.revision,1);assert.match(r.document.content[0].children[0].inlines.map(r=>r.text).join(''),/^A Report/);assert.equal(d.revision,0);});
+test('published, adopted and public-input content reject direct editor transactions',()=>{
+ const d=draft();for(const locked of [publicInputEdition(d),finalizeLegalDocument(d),{...d,lifecycle:'signed'}]){const s=createLegalEditorState(locked),r=applyLegalTransaction(s,s.tr.insertText('FORGED',2),locked);assert.equal(r.changed,false);assert.deepEqual(r.document,locked);assert.equal(s.apply(s.tr.insertText('FORGED',2)).doc.eq(s.doc),true);}
+});
+test('format commands change real marks, and undo/redo restore the exact state',()=>{
+ const d=draft();let s=createLegalEditorState(d);s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,2,8)));
+ commands.italic(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.nodeAt(2).marks.some(m=>m.type.name==='italic'),true);
+ commands.undo(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.nodeAt(2).marks.some(m=>m.type.name==='italic'),false);
+ commands.redo(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.nodeAt(2).marks.some(m=>m.type.name==='italic'),true);
+});
+test('new sections and tables receive stable IDs and remain valid legal data',()=>{
+ const d=draft();let s=createLegalEditorState(d);appendSection('Effective date')(s,tr=>{s=s.apply(tr);});appendTable()(s,tr=>{s=s.apply(tr);});const next=editorToLegal(s.doc,d);assert.equal(next.content[1].title,'Effective date');assert.equal(next.content[2].kind,'table');assert.equal(next.content[2].children[0].children.length,2);
+});
+test('numbering is rendered and recomputed without becoming a semantic ID or title',()=>{
+ const d=draft();let s=createLegalEditorState(d);appendSection('Effective date')(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.child(1).attrs.numberLabel,'SEC. 2.');const next=editorToLegal(s.doc,d);assert.equal(next.content[1].title,'Effective date');assert.equal(Object.hasOwn(next.content[1],'numberLabel'),false);const dom=new JSDOM(''),fragment=renderedFragment(next,dom.window.document);assert.match(fragment.querySelector('h2').textContent,/SEC\. 1\./);dom.window.close();
+});
+test('split and pasted blocks receive unique IDs instead of copying existing identity',()=>{
+ const d=draft(),s=createLegalEditorState(d),tr=s.tr.split(8),r=applyLegalTransaction(s,tr,d);const ids=r.document.content[0].children.map(n=>n.id);assert.equal(new Set(ids).size,ids.length);assert.equal(ids[0],'p1');
+});
+test('safe paste discards executable objects, active attributes and unsupported markup',()=>{
+ const dom=new JSDOM(''),slice=parsePastedHTML('<script>alert(1)</script><iframe src="https://evil.test"></iframe><p onclick="steal()"><strong>Keep</strong> <a href="javascript:steal()">text</a><img src=x onerror=steal()></p>',dom.window.document);
+ const json=JSON.stringify(slice.toJSON());assert.match(json,/Keep/);assert.doesNotMatch(json,/steal|script|iframe|onerror|javascript/);dom.window.close();
+});
+test('legal markup-like text renders as text rather than executable DOM',()=>{
+ const d=draft();d.content[0].children[0].inlines=[{kind:'text',text:'<img src=x onerror=steal()>'}];const dom=new JSDOM(''),fragment=renderedFragment(d,dom.window.document);assert.equal(fragment.querySelector('img'),null);assert.match(fragment.textContent,/<img/);dom.window.close();
+});
+test('oversized or malformed editor commands fail without modifying a document',()=>{const s=createLegalEditorState(draft());assert.equal(appendSection('')(s),false);assert.equal(appendTable(10000,1)(s),false);});
+test('a mounted editor renders real text, reports accepted changes and enforces read-only state',()=>{
+ const dom=new JSDOM('<div id="editable"></div><div id="fixed"></div>'),names=['window','document','Node','HTMLElement','MutationObserver','navigator','getComputedStyle'],previous=new Map(names.map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
+ for(const name of names)Object.defineProperty(globalThis,name,{value:name==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[name],configurable:true,writable:true});
+ let editor,fixed;try{
+  const changes=[],errors=[];editor=mountLegalEditor(dom.window.document.getElementById('editable'),draft(),{onChange:d=>changes.push(d),onError:e=>errors.push(e)});
+  assert.match(editor.view.dom.textContent,/Report annually/);editor.view.dispatch(editor.view.state.tr.insertText('Now ',2));assert.equal(changes.length,1);assert.equal(errors.length,0);assert.equal(changes[0].revision,1);
+  const source=publicInputEdition(draft());fixed=mountLegalEditor(dom.window.document.getElementById('fixed'),source);assert.equal(fixed.view.dom.getAttribute('contenteditable'),'false');fixed.view.dispatch(fixed.view.state.tr.insertText('FORGED',2));assert.deepEqual(fixed.getDocument(),source);
+ }finally{editor?.destroy();fixed?.destroy();for(const[name,descriptor]of previous){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];}dom.window.close();}
+});
