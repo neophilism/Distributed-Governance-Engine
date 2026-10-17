@@ -127,7 +127,7 @@ test(
           new CompositionEvent("compositionstart", { bubbles: true, data: "" }),
         ),
       );
-      await owner.keyboard.insertText(composed);
+      await owner.keyboard.sendCharacter(composed);
       await owner.evaluate((text) =>
         document.activeElement.dispatchEvent(
           new CompositionEvent("compositionend", { bubbles: true, data: text }),
