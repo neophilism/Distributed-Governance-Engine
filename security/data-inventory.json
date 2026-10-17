@@ -71,13 +71,21 @@
       "assets": [
         "account contact",
         "official verification",
-        "payment customer references"
+        "payment customer references",
+        "passkey credential identifiers and public keys",
+        "passkey counters and backup flags",
+        "authorized encrypted-device public-key thumbprints"
       ],
       "plaintextAt": [
         "scoped identity or billing services"
       ],
-      "services": "minimized; no card data in app",
-      "onChain": false
+      "services": "minimized; no card data, passkey private key or encrypted-device private key in app",
+      "onChain": false,
+      "implementedAssets": [
+        "session-bound passkey challenge digests",
+        "verifier-normalized credential public material and counters",
+        "separately revocable device public-key thumbprints"
+      ]
     },
     {
       "id": "operations",
