@@ -11,6 +11,7 @@ test('unsupported schema, unsafe fields, duplicate IDs and illegal child types f
 test('schema v2 stores canonical HTTPS links and citations while v1 remains closed',()=>{
  const d=fixture();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'annual report'},{kind:'text',text:' '},{kind:'citation',targetUrl:'https://law.example/statute#s1',label:'12 U.S.C. 34',title:'Source'}];
  assert.match(legalPlainText(validateLegalDocument(d)),/annual report <https:\/\/example.gov\/report>/);
+ assert.deepEqual(documentIssues(d),[]);
  for(const targetUrl of ['javascript:alert(1)','http://example.gov','https://user:secret@example.gov/']){const x=structuredClone(d);x.content[0].children[0].inlines[0].targetUrl=targetUrl;assert.throws(()=>validateLegalDocument(x),/URL|HTTPS/);}
  const old=fixture();old.schemaVersion=1;const upgraded=migrateLegalDocumentV1(old);assert.equal(upgraded.schemaVersion,2);assert.equal(upgraded.schemaMigration.sourceDigest,legalDocumentDigest(old));assert.deepEqual(upgraded.content,old.content);assert.throws(()=>migrateLegalDocumentV1(upgraded));
  const forbidden=structuredClone(old);forbidden.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/',label:'source'}];assert.throws(()=>validateLegalDocument(forbidden),/inline kind/);
