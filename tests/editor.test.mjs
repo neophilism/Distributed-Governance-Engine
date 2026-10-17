@@ -11,7 +11,7 @@ test('external links and citations round-trip and unsafe schemes cannot enter th
  let s=createLegalEditorState(draft());s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,2,8)));assert.equal(insertExternalLink('https://example.gov/report')(s,tr=>{s=s.apply(tr);}),true);const next=editorToLegal(s.doc,draft());assert.equal(next.content[0].children[0].inlines[0].kind,'link');assert.equal(next.content[0].children[0].inlines[0].label,'Report');assert.equal(insertCitation('javascript:alert(1)','bad')(s),false);
 });
 test('selected external atoms can be inspected, edited, unlinked and restored through history',()=>{
- const d=draft();let s=createLegalEditorState(d);s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,2,8)));insertExternalLink('https://example.gov/report')(s,tr=>{s=s.apply(tr);});
+ const d=draft();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'Report'},{kind:'text',text:' annually.'}];let s=createLegalEditorState(d);
  s=s.apply(s.tr.setSelection(NodeSelection.create(s.doc,2)));assert.deepEqual(selectedExternalInline(s),{kind:'link',targetUrl:'https://example.gov/report',label:'Report'});
  assert.equal(updateExternalInline({targetUrl:'https://example.gov/revised',label:'Revised report',title:'Source'})(s,tr=>{s=s.apply(tr);}),true);assert.equal(s.doc.nodeAt(2).attrs.label,'Revised report');
  const before=s.doc;assert.equal(updateExternalInline({targetUrl:'javascript:alert(1)',label:'Unsafe'})(s),false);assert.equal(s.doc.eq(before),true);
