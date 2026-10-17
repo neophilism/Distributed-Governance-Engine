@@ -1,0 +1,34 @@
+{
+  "unit": "DCE-002",
+  "scope": "partial passkey ceremony and encrypted-device authorization boundary; not a deployed authenticator integration",
+  "observedAt": "2026-10-17T22:09:44Z",
+  "sourceFiles": {
+    "server/identity-store.mjs": "fe8d0fabf84c089e9598ab691bfb44f2f5bf697041345ebfad37d9648ad7a67b",
+    "server/account-http.mjs": "2a0e24f037fe569ffd55866992109de1e2213d72647e415cc873dc8cd8db0842",
+    "migrations/009-passkey-device-assurance.sql": "1ca7c07198bb2f5e4ce37b519669b4e3caa52962051e7a6dd73f60cdbdcf282a",
+    "tests/identity.test.mjs": "4a4b90cde9371940ff636a41fea2f85c9d12dc5465dd6c3b90e9865cc2557bec",
+    "tests/account-http.test.mjs": "f23181b6e602f19b519e527534693c06fbe4c2fd3abb27f64d127bd382fc843a",
+    "tests/identity-postgres.integration.mjs": "730d60f6ad31ab2b4a344d774076f74b788b60fa41f5a1aa79f3b90ab60ff98d",
+    "docs/IDENTITY_FOUNDATION.md": "abab72ce844061e6e51cc7659eb99844e966dd8a803a7e5ed6a3006a57d729a4",
+    "docs/ACCOUNT_HTTP.md": "6d4d3f317b778fdc76acb132a3df8bd58b38fce129ff12c2613e310d7c64d713",
+    "security/data-inventory.json": "3f2147a7467091e36455e48e3c64458f6f57d862fd07b2e600ece45cefa2a96c"
+  },
+  "localChecks": {
+    "node": "v24.19.0",
+    "syntax": "passed for changed JavaScript modules and tests",
+    "registryValidation": "passed",
+    "securityStatusValidation": "passed",
+    "diffWhitespace": "passed"
+  },
+  "hostedChecks": "required on the exact pull-request head; local dependency installation was unavailable under the execution environment registry policy",
+  "networkPostgres": "required exact-head CI job includes concurrent challenge consumption and device step-up coverage",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "No reviewed WebAuthn verifier or attestation policy is selected by the production bootstrap",
+    "No real browser, passkey authenticator or provider account was used locally",
+    "No private content key is accepted, issued or rekeyed",
+    "Device authorization stores a public-key thumbprint only and does not yet grant private workspace access",
+    "Provider-loss restoration and deployed acceptance remain incomplete"
+  ]
+}

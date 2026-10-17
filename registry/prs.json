@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 13,
+  "roadmapVersion": 14,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T21:28:15Z",
+  "observedAt": "2026-10-17T22:11:53Z",
   "units": [
     {
       "id": "DCE-001",
@@ -52,7 +52,8 @@
         6,
         7,
         11,
-        12
+        12,
+        13
       ]
     },
     {
@@ -1049,16 +1050,31 @@
       "id": 4904075307,
       "number": 12,
       "title": "DCE-002: Require provider assurance for recovery issuance (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/12",
       "createdAt": "2026-10-17T21:28:15Z",
-      "updatedAt": "2026-10-17T21:28:15Z",
+      "updatedAt": "2026-10-17T21:32:36Z",
+      "mergedAt": "2026-10-17T21:32:35Z",
+      "closedAt": "2026-10-17T21:32:35Z",
+      "draft": false,
+      "headSha": "2565ed1db6b7b5bcda64a7c66cc81b6ee987e3b3",
+      "baseRef": "main",
+      "mergeCommitSha": "cdb0d7764f8435b5f67d659d5d751f9684684d8a"
+    },
+    {
+      "id": 4904353814,
+      "number": 13,
+      "title": "DCE-002: Add passkey step-up and device authorization (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/13",
+      "createdAt": "2026-10-17T22:11:52Z",
+      "updatedAt": "2026-10-17T22:11:53Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "95a9e9c5fd4fe559aa5841699d8c45f3e13173d5",
+      "headSha": "dc7d469bac9d1b1c0ad541b10dce56cdd0db7a98",
       "baseRef": "main",
-      "mergeCommitSha": "133d9be26fb4d083ec4a26eb9dc0bbc971137c7f"
+      "mergeCommitSha": null
     }
   ]
 }

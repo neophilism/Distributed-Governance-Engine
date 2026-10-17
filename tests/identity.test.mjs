@@ -9,7 +9,10 @@ import {createOIDCLogin,discoverIdentityProvider} from '../server/oidc-login.mjs
 let db,store,time;
 const sessionKey=randomBytes(32),stateKey=randomBytes(32),origin='https://quill.example';
 const transaction=callback=>db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE dge_identity_runtime');return callback(tx);});
-const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time});
+const passkeyId=randomBytes(32).toString('base64url');
+const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time,
+  verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false}}),
+  verifyPasskeyAuthentication:async({response})=>({verified:response?.accepted===true,userVerified:response?.userVerified===true,credentialId:response?.credentialId,newCounter:response?.newCounter})});
 before(async()=>{db=await PGlite.create();assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:true});assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:false});});
 after(async()=>{await db?.close();});
 beforeEach(async()=>{await db.exec('TRUNCATE dge_identity.accounts,dge_identity.tenants,dge_identity.login_challenges CASCADE');time=Date.now();store=createIdentityStore(options());});
@@ -102,7 +105,7 @@ test('single-use recovery codes revoke sessions and create a read-only recovery 
   const recovery=await store.recoverAccount(primary.accountId,issued.recoveryCodes[0]);
   await denied(store.account(primary.sessionToken));await denied(store.account(second.sessionToken));
   assert.deepEqual(await store.sessionInfo(recovery.sessionToken),{
-    accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',authenticationAssurance:'primary',recoveryRestricted:true
+    accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',authenticationAssurance:'primary',passkeyStepUpExpiresAt:null,recoveryRestricted:true
   });
   await denied(store.createTenant({...recovery,origin}));
   await denied(store.withTenant({...recovery,origin},randomUUID(),{},async()=>true));
@@ -115,6 +118,31 @@ test('rotating recovery codes revoke earlier unused codes and expiry fails close
   const who=await account(),first=await store.issueRecoveryCodes(who),second=await store.issueRecoveryCodes(who);
   await denied(store.recoverAccount(who.accountId,first.recoveryCodes[0]));
   time+=30*86400000+1;await denied(store.recoverAccount(who.accountId,second.recoveryCodes[0]));
+});
+test('passkey challenges are session-bound, one-use, counter-checked and separate from device authorization',async()=>{
+  const who=await account(),other=await account('other');
+  const enrollment=await store.beginPasskeyEnrollment(who);
+  assert.equal(enrollment.rpId,'quill.example');assert.equal(enrollment.excludeCredentials.length,0);
+  await denied(store.finishPasskeyEnrollment(other,enrollment.challenge,{accepted:true,credentialId:passkeyId}));
+  const enrolled=await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId});
+  assert.match(enrolled.credentialId,/^[a-f0-9-]{36}$/);await denied(store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId}));
+  await denied(store.authorizeDevice(who,'a'.repeat(64)));
+  const authentication=await store.beginPasskeyAuthentication(who);
+  assert.deepEqual(authentication.allowCredentials,[{id:passkeyId,transports:['internal']}]);
+  await denied(store.finishPasskeyAuthentication(who,authentication.challenge,{accepted:true,userVerified:false,credentialId:passkeyId,newCounter:1}));
+  const retry=await store.beginPasskeyAuthentication(who);
+  await store.finishPasskeyAuthentication(who,retry.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1});
+  const authorized=await store.authorizeDevice(who,'a'.repeat(64));assert.equal(authorized.authorized,true);
+  const devices=await store.devices(who);assert.equal(devices.items.length,1);assert.equal(devices.items[0].keyThumbprint,'a'.repeat(64));
+  await store.revokeDevice(who,devices.items[0].id);assert.equal((await store.devices(who)).items.length,0);
+  const rollback=await store.beginPasskeyAuthentication(who);
+  await denied(store.finishPasskeyAuthentication(who,rollback.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1}));
+});
+test('recovery and primary-only sessions cannot enroll passkeys or authorize devices',async()=>{
+  const primary={...await store.establishSession({issuer:'https://identity.example',subject:'primary-passkey',authenticatedAt:time,authenticationMethods:['pwd']}),origin};
+  await denied(store.beginPasskeyEnrollment(primary));
+  const who=await account(),codes=await store.issueRecoveryCodes(who),recovery={...await store.recoverAccount(who.accountId,codes.recoveryCodes[0]),origin};
+  await denied(store.beginPasskeyEnrollment(recovery));await denied(store.beginPasskeyAuthentication(recovery));await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
 });
 test('sensitive membership changes require login within five minutes',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;

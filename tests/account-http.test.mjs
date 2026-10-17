@@ -45,6 +45,22 @@ beforeEach(async () => {
     stateKey,
     origin,
     clock: () => clock,
+    verifyPasskeyRegistration: async ({ response }) => ({
+      verified: response?.accepted === true,
+      credential: {
+        id: response?.credentialId,
+        publicKey: randomBytes(32).toString("base64url"),
+        counter: 0,
+        transports: ["internal"],
+        backedUp: false,
+      },
+    }),
+    verifyPasskeyAuthentication: async ({ response }) => ({
+      verified: response?.accepted === true,
+      userVerified: response?.userVerified === true,
+      credentialId: response?.credentialId,
+      newCounter: response?.newCounter,
+    }),
   });
   handler = createAccountHandler({
     store,
@@ -205,6 +221,33 @@ test("recovery routes rotate codes and issue only restricted cookies", async () 
     403,
   );
   assert.equal((await call("/api/session", { who })).status, 401);
+});
+test("passkey step-up is required before an encrypted-device thumbprint is authorized", async () => {
+  const who = await user("passkey-owner"), credentialId = randomBytes(32).toString("base64url");
+  let response = await call("/api/passkeys/enrollment/options", { who, method: "POST", body: {} });
+  assert.equal(response.status, 201);
+  const enrollment = await response.json();
+  response = await call("/api/passkeys/enrollment/verify", {
+    who,
+    method: "POST",
+    body: { challenge: enrollment.challenge, response: { accepted: true, credentialId } },
+  });
+  assert.equal(response.status, 201);
+  assert.equal((await call("/api/devices", { who, method: "POST", body: { keyThumbprint: "a".repeat(64) } })).status, 403);
+  response = await call("/api/passkeys/authentication/options", { who, method: "POST", body: {} });
+  const authentication = await response.json();
+  response = await call("/api/passkeys/authentication/verify", {
+    who,
+    method: "POST",
+    body: { challenge: authentication.challenge, response: { accepted: true, userVerified: true, credentialId, newCounter: 1 } },
+  });
+  assert.equal(response.status, 200);
+  response = await call("/api/devices", { who, method: "POST", body: { keyThumbprint: "a".repeat(64) } });
+  assert.equal(response.status, 201);
+  const devices = await (await call("/api/devices", { who })).json();
+  assert.equal(devices.items.length, 1);
+  response = await call(`/api/devices/${devices.items[0].id}`, { who, method: "DELETE", body: {} });
+  assert.equal(response.status, 200);
 });
 test("workspace creation is protected at the HTTP boundary and does not accept caller identity fields", async () => {
   const who = await user("a");

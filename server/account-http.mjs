@@ -292,6 +292,44 @@ export function createAccountHandler({
           ],
         );
       }
+      if (url.pathname === "/api/passkeys/enrollment/options") {
+        method(["POST"]);
+        write();
+        await boundedJson(request, []);
+        return json(await store.beginPasskeyEnrollment(credentials), 201);
+      }
+      if (url.pathname === "/api/passkeys/enrollment/verify") {
+        method(["POST"]);
+        write();
+        const body = await boundedJson(request, ["challenge", "response"], undefined, 65536);
+        return json(await store.finishPasskeyEnrollment(credentials, body.challenge, body.response), 201);
+      }
+      if (url.pathname === "/api/passkeys/authentication/options") {
+        method(["POST"]);
+        write();
+        await boundedJson(request, []);
+        return json(await store.beginPasskeyAuthentication(credentials), 201);
+      }
+      if (url.pathname === "/api/passkeys/authentication/verify") {
+        method(["POST"]);
+        write();
+        const body = await boundedJson(request, ["challenge", "response"], undefined, 65536);
+        return json(await store.finishPasskeyAuthentication(credentials, body.challenge, body.response));
+      }
+      if (url.pathname === "/api/devices") {
+        method(["GET", "POST"]);
+        if (request.method === "GET") return json(await store.devices(credentials));
+        write();
+        const body = await boundedJson(request, ["keyThumbprint"]);
+        return json(await store.authorizeDevice(credentials, body.keyThumbprint), 201);
+      }
+      const deviceRoute = url.pathname.match(/^\/api\/devices\/([a-f0-9-]+)$/);
+      if (deviceRoute && uuid.test(deviceRoute[1])) {
+        method(["DELETE"]);
+        write();
+        await boundedJson(request, []);
+        return json(await store.revokeDevice(credentials, deviceRoute[1]));
+      }
       if (
         url.pathname === "/api/logout" ||
         url.pathname === "/api/logout-all"
