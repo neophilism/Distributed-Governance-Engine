@@ -1,14 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {TextSelection} from 'prosemirror-state';
+import {NodeSelection,TextSelection} from 'prosemirror-state';
 import {createLegalDocument,publicInputEdition,finalizeLegalDocument} from '../src/legal-structure.mjs';
-import {legalToEditor,editorToLegal,createLegalEditorState,applyLegalTransaction,commands,appendSection,appendTable,insertExternalLink,insertCitation,parsePastedHTML,renderedFragment,mountLegalEditor} from '../editor/model.mjs';
+import {legalToEditor,editorToLegal,createLegalEditorState,applyLegalTransaction,commands,appendSection,appendTable,insertExternalLink,insertCitation,selectedExternalInline,updateExternalInline,removeExternalInline,parsePastedHTML,renderedFragment,mountLegalEditor} from '../editor/model.mjs';
 const draft=()=>({...structuredClone(createLegalDocument({id:'draft',tenantId:'org',title:'Draft bill'})),content:[{kind:'section',id:'s1',title:'Reporting',children:[{kind:'paragraph',id:'p1',inlines:[{kind:'text',text:'Report annually.',marks:['bold']}]},{kind:'paragraph',id:'p2',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'s1',label:'section 1'}]}]}]});
 test('the editor round-trips legal IDs, exact text, marks and cross-references',()=>{const d=draft();assert.deepEqual(editorToLegal(legalToEditor(d),d),d);});
 test('external links and citations round-trip and unsafe schemes cannot enter the document',()=>{
  const d=draft();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'report'},{kind:'text',text:' and '},{kind:'citation',targetUrl:'https://law.example/source',label:'authority'}];assert.deepEqual(editorToLegal(legalToEditor(d),d),d);
  let s=createLegalEditorState(draft());s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,2,8)));assert.equal(insertExternalLink('https://example.gov/report')(s,tr=>{s=s.apply(tr);}),true);const next=editorToLegal(s.doc,draft());assert.equal(next.content[0].children[0].inlines[0].kind,'link');assert.equal(next.content[0].children[0].inlines[0].label,'Report');assert.equal(insertCitation('javascript:alert(1)','bad')(s),false);
+});
+test('selected external atoms can be inspected, edited, unlinked and restored through history',()=>{
+ const d=draft();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'Report'},{kind:'text',text:' annually.'}];let s=createLegalEditorState(d);
+ s=s.apply(s.tr.setSelection(NodeSelection.create(s.doc,2)));assert.deepEqual(selectedExternalInline(s),{kind:'link',targetUrl:'https://example.gov/report',label:'Report'});
+ assert.equal(updateExternalInline({targetUrl:'https://example.gov/revised',label:'Revised report',title:'Source'})(s,tr=>{s=s.apply(tr);}),true);assert.equal(s.doc.nodeAt(2).attrs.label,'Revised report');
+ const before=s.doc;assert.equal(updateExternalInline({targetUrl:'javascript:alert(1)',label:'Unsafe'})(s),false);assert.equal(s.doc.eq(before),true);
+ commands.undo(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.nodeAt(2).attrs.label,'Report');commands.redo(s,tr=>{s=s.apply(tr);});assert.equal(s.doc.nodeAt(2).attrs.label,'Revised report');
+ s=s.apply(s.tr.setSelection(NodeSelection.create(s.doc,2)));assert.equal(removeExternalInline(s,tr=>{s=s.apply(tr);}),true);const next=editorToLegal(s.doc,d);assert.equal(next.content[0].children[0].inlines[0].kind,'text');assert.equal(next.content[0].children[0].inlines.map(run=>run.text).join(''),'Revised report annually.');
+});
+test('external atom changes are rejected for immutable editions',()=>{
+ const d=draft();d.content[0].children[0].inlines=[{kind:'link',targetUrl:'https://example.gov/report',label:'Report'}];const locked=publicInputEdition(d);let s=createLegalEditorState(locked),transaction;s=s.apply(s.tr.setSelection(NodeSelection.create(s.doc,2)));updateExternalInline({targetUrl:'https://example.gov/new',label:'New'})(s,tr=>{transaction=tr;});const result=applyLegalTransaction(s,transaction,locked);assert.equal(result.changed,false);assert.deepEqual(result.document,locked);
 });
 test('actual edit transactions increment the revision without mutating the old edition',()=>{const d=draft(),s=createLegalEditorState(d),r=applyLegalTransaction(s,s.tr.insertText('A ',2),d);assert.equal(r.changed,true);assert.equal(r.document.revision,1);assert.match(r.document.content[0].children[0].inlines.map(r=>r.text).join(''),/^A Report/);assert.equal(d.revision,0);});
 test('published, adopted and public-input content reject direct editor transactions',()=>{

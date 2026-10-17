@@ -8,6 +8,9 @@ import {
   canDirectlyEdit,
   insertExternalLink,
   insertCitation,
+  selectedExternalInline,
+  updateExternalInline,
+  removeExternalInline,
 } from "../editor/model.mjs";
 import {
   createLegalDocument,
@@ -429,6 +432,28 @@ function App() {
     if (kind === "citation" && label === null) return;
     run(kind === "link" ? insertExternalLink(targetUrl) : insertCitation(targetUrl, label));
   }
+  function editExternal() {
+    const current = controller.current
+      ? selectedExternalInline(controller.current.view.state)
+      : null;
+    if (!current) {
+      setStatus("Select an existing link or citation to edit it.");
+      return;
+    }
+    const targetUrl = window.prompt("HTTPS source address", current.targetUrl);
+    if (targetUrl === null) return;
+    const label = window.prompt("Visible label", current.label);
+    if (label === null) return;
+    const title = window.prompt("Optional source title", current.title ?? "");
+    if (title === null) return;
+    run(
+      updateExternalInline({
+        targetUrl,
+        label,
+        title: title || null,
+      }),
+    );
+  }
   function previewInput() {
     setDoc(publicInputEdition(controller.current.getDocument()));
     setGeneration((x) => x + 1);
@@ -656,6 +681,12 @@ function App() {
             </button>
             <button disabled={!editable} onMouseDown={(e) => e.preventDefault()} onClick={() => addExternal("citation")}>
               Citation
+            </button>
+            <button disabled={!editable} onMouseDown={(e) => e.preventDefault()} onClick={editExternal}>
+              Edit source
+            </button>
+            <button disabled={!editable} onMouseDown={(e) => e.preventDefault()} onClick={() => run(removeExternalInline)}>
+              Remove link
             </button>
             <button disabled={!editable} onClick={() => run(appendTable())}>
               Table

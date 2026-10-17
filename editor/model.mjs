@@ -1,5 +1,5 @@
 import {Schema,DOMParser,DOMSerializer} from 'prosemirror-model';
-import {EditorState,Plugin,TextSelection} from 'prosemirror-state';
+import {EditorState,Plugin,NodeSelection,TextSelection} from 'prosemirror-state';
 import {EditorView} from 'prosemirror-view';
 import {baseKeymap,toggleMark} from 'prosemirror-commands';
 import {history,undo,redo} from 'prosemirror-history';
@@ -111,6 +111,29 @@ function insertExternalInline(kind,targetUrl,label,title) {return (state,dispatc
 };}
 export const insertExternalLink=(targetUrl,label,title)=>insertExternalInline('external_link',targetUrl,label,title);
 export const insertCitation=(targetUrl,label,title)=>insertExternalInline('citation',targetUrl,label,title);
+function externalInlineSelection(state) {
+ const {selection}=state;
+ if(!(selection instanceof NodeSelection)||!['external_link','citation'].includes(selection.node.type.name))return null;
+ return {node:selection.node,from:selection.from,to:selection.to};
+}
+export function selectedExternalInline(state) {
+ const selected=externalInlineSelection(state);if(!selected)return null;
+ const {targetUrl,label,title}=selected.node.attrs;
+ return {kind:selected.node.type.name==='external_link'?'link':'citation',targetUrl,label,...(title===null?{}:{title})};
+}
+export function updateExternalInline({targetUrl,label,title}={}) {return (state,dispatch)=>{
+ const selected=externalInlineSelection(state);if(!selected)return false;
+ let url;try{url=normalizeExternalUrl(targetUrl);}catch{return false;}
+ const text=typeof label==='string'?label.trim():'',nextTitle=title===undefined?selected.node.attrs.title:title;
+ if(!text||text.length>1000||nextTitle!==null&&(typeof nextTitle!=='string'||nextTitle.length>1000))return false;
+ if(dispatch)dispatch(state.tr.setNodeMarkup(selected.from,selected.node.type,{targetUrl:url,label:text,title:nextTitle??null}).scrollIntoView());
+ return true;
+};}
+export function removeExternalInline(state,dispatch) {
+ const selected=externalInlineSelection(state);if(!selected)return false;
+ if(dispatch)dispatch(state.tr.replaceWith(selected.from,selected.to,state.schema.text(selected.node.attrs.label)).scrollIntoView());
+ return true;
+}
 export function appendSection(title) {return (state,dispatch)=>{
  if(typeof title!=='string'||!title.trim()||title.length>200)return false;
  if(dispatch){const section=editorSchema.nodes.section.createChecked({id:newId(),title:title.trim()},editorSchema.nodes.paragraph.create({id:newId()}));const pos=state.doc.content.size;const tr=state.tr.insert(pos,section);tr.setSelection(TextSelection.near(tr.doc.resolve(pos+2)));dispatch(tr.scrollIntoView());}return true;
