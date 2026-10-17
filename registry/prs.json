@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 4,
+  "roadmapVersion": 5,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T05:37:32.375Z",
+  "observedAt": "2026-10-17T05:43:54.142Z",
   "units": [
     {
       "id": "DCE-001",
@@ -116,7 +116,8 @@
       "implementationStatus": "partial",
       "operationalAcceptance": "unverified",
       "contributingPrs": [
-        3
+        3,
+        5
       ]
     },
     {
@@ -911,16 +912,31 @@
       "id": 4897645062,
       "number": 4,
       "title": "DCE-002: Add persisted identity and organization access foundation (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/4",
       "createdAt": "2026-10-17T05:37:14Z",
-      "updatedAt": "2026-10-17T05:37:14Z",
+      "updatedAt": "2026-10-17T05:39:16Z",
+      "mergedAt": "2026-10-17T05:39:16Z",
+      "closedAt": "2026-10-17T05:39:16Z",
+      "draft": false,
+      "headSha": "f2f6352f6247ed9ba901b3780d47848b03e36d80",
+      "baseRef": "main",
+      "mergeCommitSha": "aeba9d3f7dfee0243953610b0daa73db69304f05"
+    },
+    {
+      "id": 4897673105,
+      "number": 5,
+      "title": "DCE-005: Add bounded body-text find and replace (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/5",
+      "createdAt": "2026-10-17T05:42:38Z",
+      "updatedAt": "2026-10-17T05:42:38Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "a54b82951a3f4412ad6ff38076ff016021ec7199",
+      "headSha": "a0e66488175a5a469f41543a7d60505eb1406b7d",
       "baseRef": "main",
-      "mergeCommitSha": "0e462480fdc5f642c1665c07191d29ad8a79a45e"
+      "mergeCommitSha": "3eac5fa45c9168396b715b43fa410c45f701991e"
     }
   ]
 }
