@@ -45,7 +45,7 @@
         "Session fixation, recovery replay, CSRF, cross-tenant API and membership-revocation integration tests against disposable Postgres."
       ],
       "specification": "docs/prs/DCE-002.md",
-      "implementationStatus": "planned",
+      "implementationStatus": "partial",
       "operationalAcceptance": "unverified"
     },
     {

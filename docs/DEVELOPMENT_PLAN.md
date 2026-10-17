@@ -51,3 +51,5 @@ Proceed in dependency order. After each real PR, validate, fix failures, merge o
 Release gates: exact-head required CI; applicable security/authorization/accessibility/migration/browser/load tests; isolated approved infrastructure; authentic deployed commit and health evidence; real multiuser and independent artifact-verification journeys. Final human review occurs after deployment, without inventing independent review or certification evidence.
 
 DCE-004 is implemented in actual merged PR #2. The editor foundation contributes to DCE-005; inline link UI, authenticated durable save, IME/network/browser/accessibility evidence and production integration remain incomplete. Contributions must never count as completed unit acceptance.
+
+DCE-002 has a partial server implementation for OIDC login, persisted sessions, membership/invitations, scoped database permissions and audit events. See IDENTITY_FOUNDATION.md and decisions/0002-low-cost-identity.md. Recovery, passkey/device assurance, HTTP/UI integration and deployment acceptance remain planned. No hosted service or paid resource is created for this contribution.

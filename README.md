@@ -1,4 +1,4 @@
-# Document Collaboration Engine
+# Distributed Governance Engine
 
 Reusable legal-document drafting, proposal, deliberation and governance engine.
 
@@ -8,6 +8,7 @@ Reusable legal-document drafting, proposal, deliberation and governance engine.
 - [Development plan](docs/DEVELOPMENT_PLAN.md) and [canonical PR registry](registry/prs.json)
 - [Security and truthful claim boundaries](docs/SECURITY.md)
 - [Operations and credential requirements](docs/OPERATIONS.md)
+- [Identity and organization access foundation](docs/IDENTITY_FOUNDATION.md)
 - [Repository agent instructions](AGENTS.md)
 
 Requires Node 24.19.0 (tested). Install the exact lockfile before running the editor and tests.

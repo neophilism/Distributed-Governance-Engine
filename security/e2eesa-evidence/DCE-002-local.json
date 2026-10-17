@@ -1,0 +1,29 @@
+{
+  "unit": "DCE-002",
+  "scope": "partial identity server library; not a deployed identity service",
+  "observedAt": "2026-10-17T05:36:29.863564+00:00",
+  "sourceFiles": {
+    "migrations/001-identity.sql": "ba9e4422c8182933154d1988da5747fbedb2f339afed615dfba138e6d5737dd3",
+    "server/identity-store.mjs": "6a45b57cc54f1291e8c648c2d84144d34776f50ae91196c78b062e6b646cb045",
+    "server/oidc-login.mjs": "d2c6b446a859f47efe5801cebe409a3ebd85ce38b711c76b0bd5dcbd9c4732f4",
+    "tests/identity.test.mjs": "53ef9f823b6b6b44ce4d6884a9baa258ea73e321d0cb4ead532494e5d1fb34b4",
+    "tests/identity-postgres.integration.mjs": "71bf1244d0521ac5712720b9b31c4ea69703acf0282ed6168ac5fb7e1556bca6",
+    "package-lock.json": "245cc7c895dac107fbc2774aedfb2d5652d2956e33e637ddf7578cf69e2fbecf",
+    ".github/workflows/verify.yml": "3fd4b551f72e99a971417c75cbbcfa4c76303243c0dba395753e41899fd80581"
+  },
+  "localChecks": {
+    "node": "v24.19.0",
+    "tests": 87,
+    "npmAuditFindings": 0,
+    "browserBuild": "passed"
+  },
+  "networkedPostgresConcurrency": "requires exact-head CI evidence; not run locally",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "No production provider connected",
+    "Passkey/device trust and recovery remain planned",
+    "HTTP/account UI and production abuse/retention controls remain planned",
+    "No private document encryption implemented"
+  ]
+}
