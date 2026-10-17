@@ -1,0 +1,870 @@
+{
+  "schemaVersion": 1,
+  "repository": "neophilism/Distributed-Governance-Engine",
+  "roadmapVersion": 2,
+  "planVerified": true,
+  "plannedPrCount": 39,
+  "observedAt": "2026-10-17T02:51:57.629Z",
+  "units": [
+    {
+      "id": "DCE-001",
+      "title": "Foundation and deterministic domain contracts",
+      "origin": "original",
+      "prs": [
+        1
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Create repository governance, specification, shared PR contract, security inventory, exact-integer voting, numbering, amendment resolution, hashing and package exports. Include an accessible walkthrough demonstrator.",
+      "acceptanceCriteria": [
+        "Three repositories validate the shared registry; the core rejects malformed ballots and stale language; public input cannot adopt text; artifacts make implementation limits explicit."
+      ],
+      "requiredTests": [
+        "Run registry contract tests, adversarial domain tests, deterministic property campaigns and source-bound validation. No remote or deployment claim."
+      ],
+      "specification": "docs/prs/DCE-001.md",
+      "implementationStatus": "implemented",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-002",
+      "title": "Identity, tenants and membership lifecycle",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-001"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add OIDC/passkeys, secure sessions, verified accounts, tenant membership, invitations, device enrollment, recovery and step-up authentication; separate identity evidence from public profiles.",
+      "acceptanceCriteria": [
+        "Expired/revoked sessions fail everywhere; one tenant cannot inspect another; a login recovery cannot silently authorize an E2EE device."
+      ],
+      "requiredTests": [
+        "Session fixation, recovery replay, CSRF, cross-tenant API and membership-revocation integration tests against disposable Postgres."
+      ],
+      "specification": "docs/prs/DCE-002.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-003",
+      "title": "Private workspace endpoint encryption",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-002"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement a pinned upstream-compatible group and attachment encryption library at authorized clients, device verification, membership rekey, encrypted local cache, key backup and explicit recovery profiles.",
+      "acceptanceCriteria": [
+        "Storage, relays, exports, queues, backups and operator credentials contain no private plaintext or unwrapped application keys; group removal rotates future access; no custom cryptographic primitive."
+      ],
+      "requiredTests": [
+        "Service-compromise canaries, malicious-device enrollment, key-change warnings, removed-member access, backup restore and protocol interoperability tests. Publish precise threat exclusions."
+      ],
+      "specification": "docs/prs/DCE-003.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-004",
+      "title": "Semantic legal document schema",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-001"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Version stable document/block IDs, nested sections, definitions, citations, exhibits, tables, text marks, footnotes and separate presentation metadata. Define migrations and immutable published snapshots.",
+      "acceptanceCriteria": [
+        "Semantic IDs survive renumbering; unknown schema versions fail safely; migrations preserve meaning and audit lineage."
+      ],
+      "requiredTests": [
+        "Golden document fixtures, malformed/deep tree fuzzing, migration rollback and hash-domain separation tests."
+      ],
+      "specification": "docs/prs/DCE-004.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-005",
+      "title": "Editor shell and essential formatting",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-004"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Build shared React/TypeScript ProseMirror editor, navigation outline, keyboard shortcuts, autosave, local undo/redo, basic type styles, tables, links and mode indicators.",
+      "acceptanceCriteria": [
+        "Author can draft and print a basic legal document; pending save and failed sync are visible; adopted text remains read-only outside governance commands."
+      ],
+      "requiredTests": [
+        "Keyboard/editor component tests, paste sanitization, XSS corpus, IME, Unicode and lost-network recovery browser tests."
+      ],
+      "specification": "docs/prs/DCE-005.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-006",
+      "title": "Jurisdiction-aware legal numbering",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-005"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add configurable hierarchy profiles, starting numbers, continuations, reserved/deleted sections, indent/outdent and previewed renumbering with stable semantic IDs.",
+      "acceptanceCriteria": [
+        "US federal default follows section, (a), (1), (A), (i), (I); corporate and state profiles are explicit; renumbering previews dependent references."
+      ],
+      "requiredTests": [
+        "Nested numbering goldens including z/aa, Roman limits, pasted lists, reserved numbers, deletion and undo."
+      ],
+      "specification": "docs/prs/DCE-006.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-007",
+      "title": "Definitions and cross-reference integrity",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-006"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Store references to target IDs, defined terms, footnotes and citation metadata; surface broken references and affected references on proposed edits.",
+      "acceptanceCriteria": [
+        "Moved clauses retain correct references; deleted or ambiguous targets visibly block finalization until resolved."
+      ],
+      "requiredTests": [
+        "Move/delete/merge references, cyclic definitions, citation import and export consistency tests."
+      ],
+      "specification": "docs/prs/DCE-007.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-008",
+      "title": "Authorized realtime draft collaboration",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-003",
+        "DCE-005"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Integrate Yjs with ProseMirror for draft rooms, authorized WSS, resumable state vectors, server bounds, section subdocuments and encrypted private update envelopes.",
+      "acceptanceCriteria": [
+        "Reconnect and duplicate updates converge; read-only participants cannot submit CRDT edits; revoked users lose room access; draft sync never mutates adopted snapshots."
+      ],
+      "requiredTests": [
+        "Concurrent browser sessions, reconnect/replay, oversized updates, unauthorized-room writes, CRDT compaction and memory-budget tests."
+      ],
+      "specification": "docs/prs/DCE-008.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-009",
+      "title": "Selection anchors and replacement proposals",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-007",
+        "DCE-008"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Anchor selected ranges with block IDs and relative positions plus base digest, exact quote and context. Support insert/delete/replace/move and multi-clause atomic packages.",
+      "acceptanceCriteria": [
+        "Proposal preview shows exact before/after wording; editing proposed wording creates a new proposal revision and invalidates prior ballots."
+      ],
+      "requiredTests": [
+        "Unicode selections, overlapping ranges, stale/rebased anchors, text replacement, deleted targets and ambiguous quote tests."
+      ],
+      "specification": "docs/prs/DCE-009.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-010",
+      "title": "Governance policy versions and modes",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-009"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement immutable policy snapshots, collaboration/public-input modes, absolute or fractional quorum, approval denominators, tie rules, deadlines, minimum deliberation, finality and challenge windows.",
+      "acceptanceCriteria": [
+        "No public-input write path can change canonical text; rules and mode cannot change during an active vote; open-public electorates use published support floors and participation safeguards."
+      ],
+      "requiredTests": [
+        "Boundary tables for strict majority vs at-least supermajority, abstentions, empty electorate, timezone cutoffs and all mode mutation paths."
+      ],
+      "specification": "docs/prs/DCE-010.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-011",
+      "title": "Frozen electorates and eligibility evidence",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-002",
+        "DCE-010"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Build snapshot eligibility/weight services, verified-person cohorts, invitations, constituency and organization adapters; preserve evidence references without public PII.",
+      "acceptanceCriteria": [
+        "Ballot weight is derived from the frozen electorate; duplicate person credentials cannot vote twice within a scoped cohort; membership changes require a new ballot snapshot."
+      ],
+      "requiredTests": [
+        "Sybil/replay scenarios, concurrent snapshot creation, eligibility expiry, cohort partition totals and PII disclosure tests."
+      ],
+      "specification": "docs/prs/DCE-011.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-012",
+      "title": "Durable ballots and verifiable receipts",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-011"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Persist one active ballot per eligible principal/proposal revision, replacements with history, signed receipts, idempotency keys, monotonic sequence and transactional outbox.",
+      "acceptanceCriteria": [
+        "Retries cannot create extra weight; acknowledgments happen only after database commit; vote replacement and close races have deterministic ordering."
+      ],
+      "requiredTests": [
+        "Double-submit race, write failure, process crash after commit, idempotency collision and exact-integer weighted tally tests."
+      ],
+      "specification": "docs/prs/DCE-012.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-013",
+      "title": "Decision closure, deadlines and challenges",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-012"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement scheduled/threshold closure policies, official vs provisional tallies, ties, appeal/fraud holds and deterministic decision certificates binding all inputs.",
+      "acceptanceCriteria": [
+        "Only final eligible decisions can authorize adoption; a crash or retry cannot close twice; challenged snapshots cannot silently resume with changed voters."
+      ],
+      "requiredTests": [
+        "Clock boundary, two closers, fraud exclusion/reopen, certificate recomputation and delayed worker tests."
+      ],
+      "specification": "docs/prs/DCE-013.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-014",
+      "title": "Atomic adoption and conflict management",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-013"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Serialize authoritative revision transitions with expected revision checks, proposal/decision bindings, legal schema validation, conflict queues and atomic batch amendments.",
+      "acceptanceCriteria": [
+        "Only the exact voted wording applies once; overlapping accepted proposals cannot silently overwrite each other; changed language returns to deliberation and a fresh vote."
+      ],
+      "requiredTests": [
+        "Two simultaneous adoptions, transactional rollback, stale bases, batch atomicity, cross-document injection and private-client verification tests."
+      ],
+      "specification": "docs/prs/DCE-014.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-015",
+      "title": "Structured claim graph and evidence",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-009"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add concise pro/con/clarification claims, evidence links, counterclaims, duplicate merging, bounded graph depth and a clause-linked slide-out panel.",
+      "acceptanceCriteria": [
+        "Each point has one thesis and an editable history; users can inspect strongest points on each side without navigating a chronological comment wall."
+      ],
+      "requiredTests": [
+        "Cycle detection, graph pagination, link sanitization, quote evidence integrity, duplicate merge and deleted-claim moderation tests."
+      ],
+      "specification": "docs/prs/DCE-015.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-016",
+      "title": "Point voting, rankings and reputation",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-015",
+        "DCE-012"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Provide up/down/withdraw point votes, net-score and confidence-based sort profiles, stable tie-breaks, reputation events, anti-ring limits and minority/new-point discovery.",
+      "acceptanceCriteria": [
+        "Argument scores never affect legislative voting weight; every ranking explains counts and sort; no secret pay-to-amplify path."
+      ],
+      "requiredTests": [
+        "Vote-ring abuse simulations, self-vote rejection, duplicate retries, reputation rollback, deterministic sorting and cold-start exposure tests."
+      ],
+      "specification": "docs/prs/DCE-016.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-017",
+      "title": "Moderation, abuse and transparent appeals",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-016"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement rate budgets, report queues, brigading detection, appeal records, duplicate proposals, notifications of removals and privacy-aware evidence.",
+      "acceptanceCriteria": [
+        "Moderation is visible and auditable; removing a point does not rewrite lawful ballot history; leaked private material can be redacted without false erasure claims."
+      ],
+      "requiredTests": [
+        "XSS/spam floods, coordinated flags, moderator privilege escalation, appeal restoration and redacted-export tests."
+      ],
+      "specification": "docs/prs/DCE-017.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-018",
+      "title": "Clause-level permissions and selective unlocks",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-011",
+        "DCE-014"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement organization/document/section capability policies, expiration, read/propose/discuss/vote/sign rights and least-privilege SDK scopes.",
+      "acceptanceCriteria": [
+        "Unlocked clauses are the only amendable targets for each electorate; API, room, search, export, worker and notification paths enforce the same scope."
+      ],
+      "requiredTests": [
+        "All-role/all-resource authorization matrix, nested clauses, inherited deny, expired unlock, export leakage and cross-tenant canaries."
+      ],
+      "specification": "docs/prs/DCE-018.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-019",
+      "title": "Revision history, redlines and immutable editions",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-014"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add comparable revisions, authorship/proposal attribution, semantic/text redlines, snapshots, branches, explicit restoration as a new revision and final document states.",
+      "acceptanceCriteria": [
+        "Users can reproduce any adopted edition; signed/final editions never change in place; author-only branch edits cannot bypass votes."
+      ],
+      "requiredTests": [
+        "Diff goldens, large edits, history pagination, restoration authorization, signature invalidation and branch/adopted isolation tests."
+      ],
+      "specification": "docs/prs/DCE-019.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-020",
+      "title": "Canonical manifests and append-only event log",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-019"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Use a versioned interoperable canonical JSON contract; domain-separated hashes bind document content, policy, electorate commitments, decisions and prior revision; maintain signed log checkpoints.",
+      "acceptanceCriteria": [
+        "Changing any bound input changes its digest; public records include complete reconstructable revision manifests; private commitments are salted and access-controlled."
+      ],
+      "requiredTests": [
+        "Cross-language golden vectors, Unicode/number restrictions, event deletion/reorder, divergent histories and restore replay tests."
+      ],
+      "specification": "docs/prs/DCE-020.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-021",
+      "title": "Merkle batching and transparency witnesses",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-020"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Create inclusion/consistency proofs, public event sequence commitments, independent witness interfaces and receipt monitoring; batch by size/time.",
+      "acceptanceCriteria": [
+        "A verifier can detect changed history and missing acknowledged receipts; anchoring alone is never described as proof of honest voters or complete history."
+      ],
+      "requiredTests": [
+        "Merkle golden vectors, odd/empty batch behavior, forged proofs, split-view and censored-receipt adversarial tests."
+      ],
+      "specification": "docs/prs/DCE-021.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-022",
+      "title": "Blockchain anchor provider and finality",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-021"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement chain adapters and a durable spend-capped anchor queue, receipt verification, finality depths, reorg handling, fee estimation, archival retrieval and explicit retry states.",
+      "acceptanceCriteria": [
+        "All public documents require periodic and finalization anchors; organizations default off; unavailable chains leave visible pending status and cannot produce a falsely anchored final artifact."
+      ],
+      "requiredTests": [
+        "Local chain/provider contract tests, dropped/replaced transaction, reorg, exhausted spend cap, RPC lies and end-to-end receipt verification."
+      ],
+      "specification": "docs/prs/DCE-022.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-023",
+      "title": "Independent document verification tool",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-022"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Ship browser and command-line offline verification for revision/package hashes, signatures, Merkle paths, receipts and completeness claims against witnesses.",
+      "acceptanceCriteria": [
+        "A third party verifies an exported edition without trusting the application UI; unknown chain/profile or missing evidence returns unverified."
+      ],
+      "requiredTests": [
+        "Independent implementation vectors, modified PDF/content/manifest, stale checkpoint, key revocation and offline-availability tests."
+      ],
+      "specification": "docs/prs/DCE-023.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-024",
+      "title": "Safe import and document conversion",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-007",
+        "DCE-019"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add DOCX/ODT/HTML/plain-text import in isolated bounded workers; PDF extraction/OCR produces explicitly provisional drafts with validation previews.",
+      "acceptanceCriteria": [
+        "Import never presents OCR as exact legal text; macros/scripts are discarded; structural and numbering differences are shown before acceptance."
+      ],
+      "requiredTests": [
+        "Zip bombs, parser fuzzing, external entity/SSRF, malicious HTML, corrupted packages and legal formatting round-trip fixtures."
+      ],
+      "specification": "docs/prs/DCE-024.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-025",
+      "title": "Print, PDF and portable exports",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-019",
+        "DCE-024"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Build version-pinned pagination, tagged/bookmarked PDF, PDF/A profile, DOCX, plain text and structured JSON; add covers, line/page numbers, exhibits, watermark and redline export.",
+      "acceptanceCriteria": [
+        "Each export binds exact edition and render profile; exported text/references agree with canonical content; redactions remove underlying data."
+      ],
+      "requiredTests": [
+        "Rendered golden pages, extracted-text comparison, accessibility tags, embedded fonts, line wrapping, stale caches and irreversible-redaction tests."
+      ],
+      "specification": "docs/prs/DCE-025.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-026",
+      "title": "Signing intent, identities and frozen bytes",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-018",
+        "DCE-025"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add drawn/typed/uploaded signatures, signing order, signer capacity, explicit consent/intent, authentication assurance and cryptographic binding to a frozen edition and artifact.",
+      "acceptanceCriteria": [
+        "Visual marks alone are never treated as identity proof; approval/support signatures and legal execution signatures have distinct intent records; changed text requires a new edition."
+      ],
+      "requiredTests": [
+        "Consent/decline, replay, substitution, concurrent signing, private ink access, cancellation, delegation and exact-byte hash tests."
+      ],
+      "specification": "docs/prs/DCE-026.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-027",
+      "title": "Mass signature manifests and appendices",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-026",
+        "DCE-023"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Build paged readable signature appendices, searchable signer manifests, consented public names, Merkle inclusion receipts and separately hashed appendices for large campaigns.",
+      "acceptanceCriteria": [
+        "Millions of supporters do not require one giant interactive PDF; anyone can obtain a readable page and personal receipt bound to the same frozen text."
+      ],
+      "requiredTests": [
+        "Streaming export load tests, signature-order stability, private signer redaction, duplicate signer and manifest/PDF consistency tests."
+      ],
+      "specification": "docs/prs/DCE-027.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-028",
+      "title": "Unified typed administration and policy simulation",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-010",
+        "DCE-018",
+        "DCE-022"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Create one role-scoped admin console and versioned parameter registry for platform/org/document settings, inheritance, change previews, audit, rollback and invariant locks.",
+      "acceptanceCriteria": [
+        "Admin can configure product/price/quota/governance settings without code; forbidden weakening and active-ballot rule edits fail closed; effective source of each setting is visible."
+      ],
+      "requiredTests": [
+        "Permission matrix, dangerous-setting rejection, concurrent changes, simulations, rollback-as-new-version and audit integrity tests."
+      ],
+      "specification": "docs/prs/DCE-028.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-029",
+      "title": "Entitlements, quotas, credits and exemptions",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-028"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Implement grants independent of payments: time subscriptions, one-document purchases, credit ledger, weekly allowances, sponsored public officials, expiration and configurable usage limits.",
+      "acceptanceCriteria": [
+        "Creation atomically reserves quota; a failed creation refunds once; billing changes cannot alter existing voting rights; no automatic charge or unexplained free-official downgrade."
+      ],
+      "requiredTests": [
+        "Concurrent credit consumption, weekly boundary, refunds, idempotency, official grant expiry and paid/free policy migration tests."
+      ],
+      "specification": "docs/prs/DCE-029.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-030",
+      "title": "Payment provider adapters and reconciliation",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-029"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add replaceable checkout/provider adapters, signed webhook processing, invoice/tax metadata, grants, subscription lifecycle and credit refunds.",
+      "acceptanceCriteria": [
+        "Verified webhook data maps to idempotent ledger events; public participation remains independent from document-creation purchases; providers are replaceable."
+      ],
+      "requiredTests": [
+        "Webhook forgery/replay/order, cancellation, dispute, duplicated checkout, test-mode reconciliation and account isolation tests."
+      ],
+      "specification": "docs/prs/DCE-030.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-031",
+      "title": "Guided walkthrough and contextual assistance",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-005",
+        "DCE-015",
+        "DCE-028"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Connect accessible anchored balloons to real editor, proposal, point-vote, ballot, history, signature and admin controls; role/mode-aware tours with resume and reset.",
+      "acceptanceCriteria": [
+        "Tour targets stay attached on scroll/resize; keyboard and screen-reader equivalents work; walkthrough does not cast real votes or disclose unavailable features."
+      ],
+      "requiredTests": [
+        "Browser flows for first-time mobile/desktop, Escape/focus return, zoom, reduced motion, missing target, persisted step and feedback-mode explanations."
+      ],
+      "specification": "docs/prs/DCE-031.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-032",
+      "title": "Search, notifications and participation digests",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-017",
+        "DCE-018"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Add public/full-text search, private endpoint indexes, subscriptions, notification outbox, verified email preferences, digest controls and topic discovery.",
+      "acceptanceCriteria": [
+        "No private snippets reach operators/search/email vendors; unsubscribes and access revocation take effect before delivery."
+      ],
+      "requiredTests": [
+        "Cross-tenant search, encrypted-index boundary, stale notification permissions, delivery retry, unsubscribe and accessibility tests."
+      ],
+      "specification": "docs/prs/DCE-032.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-033",
+      "title": "Accessibility, localization and low-bandwidth clients",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-025",
+        "DCE-031",
+        "DCE-032"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Meet WCAG 2.2 AA target with manual keyboard/assistive checks, plain-language help, localization, bidirectional text and read-mostly low-bandwidth pages.",
+      "acceptanceCriteria": [
+        "Core proposal/discussion/vote/verify flows work without pointer use; accessibility findings are fixed and verification scope is recorded."
+      ],
+      "requiredTests": [
+        "Automated axe plus manual screen-reader/keyboard checks, RTL, text scaling, contrast, offline recovery and limited-bandwidth browser tests."
+      ],
+      "specification": "docs/prs/DCE-033.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-034",
+      "title": "Public participation scale and hot-document partitioning",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-014",
+        "DCE-016",
+        "DCE-021"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Partition ballots/claims by proposal and tenant, use immutable CDN snapshots, cursor pagination, bounded rooms, asynchronous projections and reproducible workload benchmarks.",
+      "acceptanceCriteria": [
+        "No document uses an all-participants WebSocket room; authoritative finality remains serialized; measured limits and infrastructure/cost assumptions are published."
+      ],
+      "requiredTests": [
+        "Target staged tests: 100 editors, 10k active voters, 1M ballot records, 10M reads/day; queue lag/reconciliation and overload tests at declared hardware budgets."
+      ],
+      "specification": "docs/prs/DCE-034.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-035",
+      "title": "Operations, backups and recovery drills",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-003",
+        "DCE-034"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Provision isolated Render/Neon resources as authorized, encrypted object storage, bounded workers, observability without content, migration runners and recovery playbooks.",
+      "acceptanceCriteria": [
+        "Restore reconciles revisions, ballots, receipts, keys and anchor outbox; deployment identifiers and health probes bind exact commit; readiness fails on unavailable dependencies."
+      ],
+      "requiredTests": [
+        "Migration expand/contract, restore drill, queue failover, key recovery, timeout, storage loss, secret rotation and actual negotiated transport verification."
+      ],
+      "specification": "docs/prs/DCE-035.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-036",
+      "title": "Security adversarial review and supply chain",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-023",
+        "DCE-027",
+        "DCE-030",
+        "DCE-033",
+        "DCE-035"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Complete source-bound AI security review, threat crosswalk, fuzzing, dependency/static/secret scans, reproducible builds, SBOM and E2EESA evidence by protected flow.",
+      "acceptanceCriteria": [
+        "Fix concrete findings, preserve scope-specific claims, report unimplemented guarantees honestly; no human audit or certification wait is inserted."
+      ],
+      "requiredTests": [
+        "Run current-head full gates, adversarial authorization/collusion/receipt tests, source digest checks and archived tool/configuration reports."
+      ],
+      "specification": "docs/prs/DCE-036.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-037",
+      "title": "Federated and delayed-network protocol",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-034",
+        "DCE-035"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Define optional sovereign regional instances, discovery and signed snapshot exchange, offline ballots with explicit deadlines, delay-tolerant queues and interplanetary latency simulations.",
+      "acceptanceCriteria": [
+        "No universal instantaneous consensus claim; each document declares an authority/finality domain; remote ballots only count if received under disclosed cutoff rules."
+      ],
+      "requiredTests": [
+        "Network partitions, minutes-to-hours delay, conflicting authorities, duplicate federation messages, receipt censorship and disaster resynchronization simulations."
+      ],
+      "specification": "docs/prs/DCE-037.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified",
+      "activation": "post-terrestrial-release"
+    },
+    {
+      "id": "DCE-038",
+      "title": "Extension SDK and release compatibility",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-028",
+        "DCE-029",
+        "DCE-036"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Publish versioned shared editor/UI/domain/API packages and an OpenAPI/event contract, plugin capability registry, consumer fixtures and rolling compatibility policy.",
+      "acceptanceCriteria": [
+        "Both application repos consume the same engine release; no wrapper forks adoption/crypto/tally logic; incompatible profiles fail explicitly."
+      ],
+      "requiredTests": [
+        "Two-consumer contract matrix, old/new schema compatibility, SDK permission bounds, supply-chain provenance and upgrade rollback tests."
+      ],
+      "specification": "docs/prs/DCE-038.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    },
+    {
+      "id": "DCE-039",
+      "title": "Production candidate and complete release evidence",
+      "origin": "original",
+      "prs": [],
+      "dependsOn": [
+        "DCE-038"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": "Deploy core services, verify real account/proposal/ballot/adoption/export/sign/anchor journeys and publish operations evidence, known limitations and owner review package.",
+      "acceptanceCriteria": [
+        "Actual production smoke passes for public and private profiles; public-input remains immutable; independent human review is queued only after deployment."
+      ],
+      "requiredTests": [
+        "Live multiuser authorization and browser smoke, real configured anchoring finality, restore evidence, load report and exact deployment commit checks."
+      ],
+      "specification": "docs/prs/DCE-039.md",
+      "implementationStatus": "planned",
+      "operationalAcceptance": "unverified"
+    }
+  ],
+  "pullRequests": [
+    {
+      "id": 4896649377,
+      "number": 1,
+      "title": "DCE-001: Establish the shared governance engine and Quill product foundation",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/1",
+      "createdAt": "2026-10-17T02:49:38Z",
+      "updatedAt": "2026-10-17T02:49:38Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false
+    }
+  ]
+}

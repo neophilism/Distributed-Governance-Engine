@@ -1,0 +1,27 @@
+{
+  "kind": "local-foundation-only",
+  "completedAt": "2026-10-17T00:54:15.670345+00:00",
+  "runtime": "v24.19.0",
+  "commands": [
+    {
+      "command": "npm run check",
+      "exitCode": 0,
+      "tests": 32,
+      "deterministicPropertyScenarios": 2000
+    },
+    {
+      "command": "node --check on all JavaScript modules",
+      "exitCode": 0,
+      "modules": 17
+    }
+  ],
+  "scope": "Domain/registry/security-status compatibility and static demo HTTP smoke only",
+  "notVerified": [
+    "live browser interactions",
+    "production authentication/E2EE/persistence",
+    "signing/payments/blockchain",
+    "CI/merge/deployment",
+    "independent review"
+  ],
+  "report": "docs/FOUNDATION_REVIEW.md"
+}

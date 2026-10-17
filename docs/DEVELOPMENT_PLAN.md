@@ -1,0 +1,51 @@
+# Distributed-Governance-Engine development plan
+
+Approved task scope: the owner's October 16, 2026 request for the shared document engine and two thin applications. Maintainer-authored decomposition version 1. This is a development plan, not a claim that the owner separately reviewed each PR.
+
+The only machine-readable plan is registry/prs.json (39 units). Detailed implementation/acceptance/test/migration specs are in docs/prs/. Unit numbers are stable IDs, never GitHub PR numbers. The foundation is mapped to actual GitHub PR #1; live GitHub owns its current state. Do not equate a foundation commit with accepted unit completion.
+
+| Unit | Planned PR | Dependencies |
+| --- | --- | --- |
+| [DCE-001](prs/DCE-001.md) | Foundation and deterministic domain contracts | None |
+| [DCE-002](prs/DCE-002.md) | Identity, tenants and membership lifecycle | DCE-001 |
+| [DCE-003](prs/DCE-003.md) | Private workspace endpoint encryption | DCE-002 |
+| [DCE-004](prs/DCE-004.md) | Semantic legal document schema | DCE-001 |
+| [DCE-005](prs/DCE-005.md) | Editor shell and essential formatting | DCE-004 |
+| [DCE-006](prs/DCE-006.md) | Jurisdiction-aware legal numbering | DCE-005 |
+| [DCE-007](prs/DCE-007.md) | Definitions and cross-reference integrity | DCE-006 |
+| [DCE-008](prs/DCE-008.md) | Authorized realtime draft collaboration | DCE-003, DCE-005 |
+| [DCE-009](prs/DCE-009.md) | Selection anchors and replacement proposals | DCE-007, DCE-008 |
+| [DCE-010](prs/DCE-010.md) | Governance policy versions and modes | DCE-009 |
+| [DCE-011](prs/DCE-011.md) | Frozen electorates and eligibility evidence | DCE-002, DCE-010 |
+| [DCE-012](prs/DCE-012.md) | Durable ballots and verifiable receipts | DCE-011 |
+| [DCE-013](prs/DCE-013.md) | Decision closure, deadlines and challenges | DCE-012 |
+| [DCE-014](prs/DCE-014.md) | Atomic adoption and conflict management | DCE-013 |
+| [DCE-015](prs/DCE-015.md) | Structured claim graph and evidence | DCE-009 |
+| [DCE-016](prs/DCE-016.md) | Point voting, rankings and reputation | DCE-015, DCE-012 |
+| [DCE-017](prs/DCE-017.md) | Moderation, abuse and transparent appeals | DCE-016 |
+| [DCE-018](prs/DCE-018.md) | Clause-level permissions and selective unlocks | DCE-011, DCE-014 |
+| [DCE-019](prs/DCE-019.md) | Revision history, redlines and immutable editions | DCE-014 |
+| [DCE-020](prs/DCE-020.md) | Canonical manifests and append-only event log | DCE-019 |
+| [DCE-021](prs/DCE-021.md) | Merkle batching and transparency witnesses | DCE-020 |
+| [DCE-022](prs/DCE-022.md) | Blockchain anchor provider and finality | DCE-021 |
+| [DCE-023](prs/DCE-023.md) | Independent document verification tool | DCE-022 |
+| [DCE-024](prs/DCE-024.md) | Safe import and document conversion | DCE-007, DCE-019 |
+| [DCE-025](prs/DCE-025.md) | Print, PDF and portable exports | DCE-019, DCE-024 |
+| [DCE-026](prs/DCE-026.md) | Signing intent, identities and frozen bytes | DCE-018, DCE-025 |
+| [DCE-027](prs/DCE-027.md) | Mass signature manifests and appendices | DCE-026, DCE-023 |
+| [DCE-028](prs/DCE-028.md) | Unified typed administration and policy simulation | DCE-010, DCE-018, DCE-022 |
+| [DCE-029](prs/DCE-029.md) | Entitlements, quotas, credits and exemptions | DCE-028 |
+| [DCE-030](prs/DCE-030.md) | Payment provider adapters and reconciliation | DCE-029 |
+| [DCE-031](prs/DCE-031.md) | Guided walkthrough and contextual assistance | DCE-005, DCE-015, DCE-028 |
+| [DCE-032](prs/DCE-032.md) | Search, notifications and participation digests | DCE-017, DCE-018 |
+| [DCE-033](prs/DCE-033.md) | Accessibility, localization and low-bandwidth clients | DCE-025, DCE-031, DCE-032 |
+| [DCE-034](prs/DCE-034.md) | Public participation scale and hot-document partitioning | DCE-014, DCE-016, DCE-021 |
+| [DCE-035](prs/DCE-035.md) | Operations, backups and recovery drills | DCE-003, DCE-034 |
+| [DCE-036](prs/DCE-036.md) | Security adversarial review and supply chain | DCE-023, DCE-027, DCE-030, DCE-033, DCE-035 |
+| [DCE-037](prs/DCE-037.md) | Federated and delayed-network protocol | DCE-034, DCE-035 |
+| [DCE-038](prs/DCE-038.md) | Extension SDK and release compatibility | DCE-028, DCE-029, DCE-036 |
+| [DCE-039](prs/DCE-039.md) | Production candidate and complete release evidence | DCE-038 |
+
+Proceed in dependency order. After each real PR, validate, fix failures, merge only when live GitHub current-head checks and merge preflight permit, update mappings/evidence and continue. Never make human review a development prerequisite. Capacity, required credentials and spending are concrete states; continue independent ready work when one is unavailable.
+
+Release gates: exact-head required CI; applicable security/authorization/accessibility/migration/browser/load tests; isolated approved infrastructure; authentic deployed commit and health evidence; real multiuser and independent artifact-verification journeys. Final human review occurs after deployment, without inventing independent review or certification evidence.
