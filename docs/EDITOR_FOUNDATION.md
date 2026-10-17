@@ -18,6 +18,6 @@ This is a contribution to DCE-005, not a claim that all editor acceptance criter
 
 ## Real-browser input and interrupted-save acceptance
 
-The authenticated Chrome journey now commits CJK text, a multi-code-point emoji sequence and a combining-mark grapheme while a composition session is active, then waits for that exact Unicode text to reach a saved public version. The same journey aborts the next real document `PUT` as an internet-disconnection failure, verifies that the unsaved wording and visible failure state remain, restores connectivity, explicitly retries and observes the next acknowledged version before reload.
+The authenticated Chrome journey now commits CJK text, a multi-code-point emoji sequence and a combining-mark grapheme through Chrome's text-input path between composition start/end events, then waits for that exact Unicode text to reach a saved public version. The same journey aborts the next real document `PUT` as an internet-disconnection failure, verifies that the unsaved wording and visible failure state remain, restores connectivity, explicitly retries and observes the next acknowledged version before reload.
 
 This is browser evidence for the current Chromium/fixture-provider/PostgreSQL path. It does not establish every operating-system IME, assistive-technology behavior, offline editing across reloads, private encrypted drafts, production networking or deployment acceptance.
