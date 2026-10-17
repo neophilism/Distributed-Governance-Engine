@@ -193,7 +193,7 @@ export function createAccountHandler({
         if (result !== null)
           return json(
             result,
-            request.method === "POST" && url.pathname.endsWith("/documents")
+            request.method === "POST" && /\/(?:documents|proposals)$/.test(url.pathname)
               ? 201
               : 200,
           );

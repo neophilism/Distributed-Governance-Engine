@@ -1,6 +1,6 @@
 # Operations and credential requirements
 
-The shared editor and account service are implemented in part. Public saved documents now have a partial implementation; private encrypted collaboration, production signing, payments and blockchain anchoring remain unfinished. See PUBLIC_DOCUMENTS.md. No production service or paid resource has been created. The old `npm run demo` is an in-memory design demonstrator; never expose it as the application.
+The shared editor and account service are implemented in part. Public saved documents and exact-version replacement proposals now have partial implementations; private encrypted collaboration, production signing, payments and blockchain anchoring remain unfinished. See PUBLIC_DOCUMENTS.md and TEXT_PROPOSALS.md. No production service or paid resource has been created. The old `npm run demo` is an in-memory design demonstrator; never expose it as the application.
 
 Run `npm ci --ignore-scripts`, `npm run check` and `npm run build`. Ordinary checks need no credentials or network provider. `npm run test:postgres` requires a disposable loopback PostgreSQL database ending in `_test`. Browser checks require DGE_BROWSER_EXECUTABLE pointing to pinned Chrome Headless Shell 155.0.8059.84; CI installs it and runs the actual HTTPS account journey with synthetic identities.
 

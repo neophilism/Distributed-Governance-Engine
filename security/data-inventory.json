@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "status": "partial-implementation-not-deployed",
   "flows": [
     {
@@ -33,7 +33,8 @@
       "implementedAssets": [
         "explicitly disclosed public drafts and all saved versions",
         "public source/schema/document/workspace IDs",
-        "version/digest/timestamp metadata"
+        "version/digest/timestamp metadata",
+        "consented public replacement proposals and rationales with exact source bindings"
       ],
       "internalOnly": [
         "author account ID",

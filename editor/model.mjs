@@ -7,6 +7,7 @@ import {keymap} from 'prosemirror-keymap';
 import {wrapInList,splitListItem} from 'prosemirror-schema-list';
 import {validateLegalDocument,legalOutline} from '../src/legal-structure.mjs';
 import {findNextText,findTextMatches} from './search.mjs';
+import {validateTextSelection} from '../src/text-selections.mjs';
 
 const attrs={id:{default:null}};
 const blockAttrs=node=>({'data-block-id':node.attrs.id});
@@ -86,7 +87,17 @@ export function mountLegalEditor(element,initial,{onChange=()=>{},onError=()=>{}
  const view=new EditorView(element,{state:createLegalEditorState(current,{readOnly}),editable:()=>canDirectlyEdit(current)&&!readOnly,transformPastedHTML:html=>cleanPastedHTML(html,element.ownerDocument).innerHTML,attributes:{role:'textbox','aria-label':'Legal document text','aria-multiline':'true',spellcheck:'true'},dispatchTransaction(transaction){
   try{const next=applyLegalTransaction(view.state,transaction,current);current=next.document;view.updateState(next.state);if(next.changed)onChange(current);}catch(error){rejectedTransactions++;onError(error.message);}
  }});
- return {view,getDocument:()=>current,destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(readOnly||!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
+ return {view,getDocument:()=>current,
+ getTextSelection(){
+  const native=element.ownerDocument.defaultView.getSelection();
+  let selection=view.state.selection;
+  if(native&&!native.isCollapsed&&view.dom.contains(native.anchorNode)&&view.dom.contains(native.focusNode)){
+   const a=view.posAtDOM(native.anchorNode,native.anchorOffset),b=view.posAtDOM(native.focusNode,native.focusOffset);selection=TextSelection.create(view.state.doc,Math.min(a,b),Math.max(a,b));
+  }
+  if(selection.empty||!selection.$from.sameParent(selection.$to)||!selection.$from.parent.isTextblock)throw Error('Select text within one body paragraph.');
+  const start=selection.$from.parentOffset,end=selection.$to.parentOffset;
+  return validateTextSelection(current,{blockId:selection.$from.parent.attrs.id,start,end,quote:selection.$from.parent.textBetween(start,end,'','\uFFFC')});
+ },destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(readOnly||!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
 }
 export const commands={undo,redo,bold:toggleMark(editorSchema.marks.bold),italic:toggleMark(editorSchema.marks.italic),underline:toggleMark(editorSchema.marks.underline),strike:toggleMark(editorSchema.marks.strike),numberedList:wrapInList(editorSchema.nodes.legal_list,{style:'decimal'}),bulletList:wrapInList(editorSchema.nodes.legal_list,{style:'bullet'})};
 export function appendSection(title) {return (state,dispatch)=>{

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 9,
+  "roadmapVersion": 11,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T12:45:08.596Z",
+  "observedAt": "2026-10-17T13:00:31.329Z",
   "units": [
     {
       "id": "DCE-001",
@@ -209,8 +209,11 @@
         "Unicode selections, overlapping ranges, stale/rebased anchors, text replacement, deleted targets and ambiguous quote tests."
       ],
       "specification": "docs/prs/DCE-009.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        9
+      ]
     },
     {
       "id": "DCE-010",
@@ -978,16 +981,31 @@
       "id": 4900152189,
       "number": 8,
       "title": "DCE-005: Save public documents, preserve versions and freeze feedback sources (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/8",
       "createdAt": "2026-10-17T12:44:52Z",
-      "updatedAt": "2026-10-17T12:44:52Z",
+      "updatedAt": "2026-10-17T12:49:13Z",
+      "mergedAt": "2026-10-17T12:49:13Z",
+      "closedAt": "2026-10-17T12:49:13Z",
+      "draft": false,
+      "headSha": "7eb1a291ea2f543e512c1fcc4c7945988609bb5a",
+      "baseRef": "main",
+      "mergeCommitSha": "807fb22aa54351526d0a762c825033044403fd9f"
+    },
+    {
+      "id": 4900254080,
+      "number": 9,
+      "title": "DCE-009: Publish exact-version text suggestions in the shared Quill panel (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/9",
+      "createdAt": "2026-10-17T13:00:04Z",
+      "updatedAt": "2026-10-17T13:00:04Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "0b10a1ee64bb7bd403dceda36a6921bc94528507",
+      "headSha": "1f8cea0175186b4081821f124bc80f33d22bcedb",
       "baseRef": "main",
-      "mergeCommitSha": "eb60c9aa29c7b4703c3bfd14a20092b19f267184"
+      "mergeCommitSha": "a4c06b758855406cf1c918be5e234cdfdfd28f33"
     }
   ]
 }

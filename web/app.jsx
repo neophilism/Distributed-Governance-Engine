@@ -19,6 +19,7 @@ import "./style.css";
 import { SearchTools } from "./search-tools.jsx";
 import { AccountPanel } from "./account-panel.jsx";
 import { DocumentLibrary } from "./document-library.jsx";
+import { ProposalPanel } from "./proposal-panel.jsx";
 import { createAccountAPI } from "./account-api.mjs";
 import { createDocumentSession } from "../editor/document-session.mjs";
 
@@ -104,38 +105,62 @@ function Tour({ onClose }) {
   const [step, setStep] = useState(0),
     [position, setPosition] = useState({ left: 20, top: 100 });
   const title = useRef(null);
-  const steps = [
+  const [steps] = useState(() =>
     [
-      "mode",
-      "Know which edition you are reading",
-      "Working drafts can be edited here. The public-input preview freezes the source and rejects editor transactions that would change it.",
-    ],
-    [
-      "editor",
-      "Work with actual legal structure",
-      "Edit the sample text. Sections, paragraphs, references and tables have stable identities so numbering changes do not change which clause they represent.",
-    ],
-    [
-      "toolbar",
-      "Format with a focused set of tools",
-      "Use basic text styles, undo and redo, legal sections, lists and tables. These controls operate on the same editor in both Quill products.",
-    ],
-    [
-      "outline",
-      "Follow the legal outline",
-      "The outline follows the semantic section hierarchy. The federal profile uses section, (a), (1), (A), (i), and (I).",
-    ],
-    [
-      "recovery",
-      "Choose whether to keep this public sample",
-      "Optional device recovery applies only to this explicitly public sample. Confidential organization content will require the encrypted cache adapter.",
-    ],
-    [
-      "export",
-      "Take an exact working copy",
-      "Download structured JSON or plain text. This development preview does not produce an executed or legally finalized document.",
-    ],
-  ];
+      [
+        "mode",
+        "Know which edition you are reading",
+        "Working drafts can be edited here. The public-input preview freezes the source and rejects editor transactions that would change it.",
+      ],
+      [
+        "editor",
+        "Work with actual legal structure",
+        "Edit the sample text. Sections, paragraphs, references and tables have stable identities so numbering changes do not change which clause they represent.",
+      ],
+      [
+        "toolbar",
+        "Format with a focused set of tools",
+        "Use basic text styles, undo and redo, legal sections, lists and tables. These controls operate on the same editor in both Quill products.",
+      ],
+      [
+        "outline",
+        "Follow the legal outline",
+        "The outline follows the semantic section hierarchy. The federal profile uses section, (a), (1), (A), (i), and (I).",
+      ],
+      [
+        "recovery",
+        "Choose whether to keep this public sample",
+        "Optional device recovery applies only to this explicitly public sample. Confidential organization content will require the encrypted cache adapter.",
+      ],
+      [
+        "export",
+        "Take an exact working copy",
+        "Download structured JSON or plain text. This development preview does not produce an executed or legally finalized document.",
+      ],
+      [
+        "save",
+        "Know whether your wording is saved",
+        "Saved versions are public. A failed or conflicting save preserves your local wording; download it before reopening.",
+      ],
+      [
+        "suggest",
+        "Propose exact replacement wording",
+        "Highlight text within one paragraph and choose Suggest replacement. The proposal preserves its exact saved version and source quote.",
+      ],
+      [
+        "proposals",
+        "Review the exact suggested change",
+        "Compare before and after wording and the rationale. Public-input source text remains fixed.",
+      ],
+      [
+        "history",
+        "Inspect earlier public versions",
+        "Each saved version remains available through public history. Pending blockchain work is not a verified receipt.",
+      ],
+    ].filter(([target]) =>
+      document.querySelector('[data-tour="' + target + '"]'),
+    ),
+  );
   useEffect(() => {
     const selector = '[data-tour="' + steps[step][0] + '"]';
     const target = document.querySelector(selector);
@@ -640,6 +665,16 @@ function App() {
             />
             <button disabled={!editable || !title.trim()}>Add section</button>
           </form>
+          {accountEnabled && (
+            <ProposalPanel
+              document={doc}
+              controller={controller}
+              record={record}
+              version={storedVersion}
+              saveState={persistence}
+              notify={setStatus}
+            />
+          )}
           <SearchTools
             controller={controller}
             editable={editable}
@@ -669,7 +704,7 @@ function App() {
           <h2>From language to decisions</h2>
           <p>
             {record
-              ? "Saved versions preserve the exact wording. Public-input mode fixes the source permanently. Proposal voting and organized deliberation are the next engine features."
+              ? "Saved versions preserve the exact wording. Public-input mode fixes the source permanently. Public-input source text stays fixed while people suggest changes."
               : "Edit this public sample, or use Documents to publish and save your own working copy."}
           </p>
           {!record && (
