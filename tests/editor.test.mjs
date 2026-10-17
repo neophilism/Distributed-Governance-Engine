@@ -38,7 +38,7 @@ test('a mounted editor renders real text, reports accepted changes and enforces 
  for(const name of names)Object.defineProperty(globalThis,name,{value:name==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[name],configurable:true,writable:true});
  let editor,fixed;try{
   const changes=[],errors=[];editor=mountLegalEditor(dom.window.document.getElementById('editable'),draft(),{onChange:d=>changes.push(d),onError:e=>errors.push(e)});
-  assert.match(editor.view.dom.textContent,/Report annually/);editor.view.dispatch(editor.view.state.tr.insertText('Now ',2));assert.equal(changes.length,1);assert.equal(errors.length,0);assert.equal(changes[0].revision,1);
+  assert.match(editor.view.dom.textContent,/Report annually/);editor.view.dispatch(editor.view.state.tr.insertText('Now ',2));assert.equal(changes.length,1);assert.equal(errors.length,0);assert.equal(changes[0].revision,1);const before=editor.getDocument();assert.equal(editor.command((state,dispatch)=>{dispatch(state.tr.insertText('\ud800',2));return true;}),false);assert.deepEqual(editor.getDocument(),before);assert.equal(errors.length,1);
   const source=publicInputEdition(draft());fixed=mountLegalEditor(dom.window.document.getElementById('fixed'),source);assert.equal(fixed.view.dom.getAttribute('contenteditable'),'false');fixed.view.dispatch(fixed.view.state.tr.insertText('FORGED',2));assert.deepEqual(fixed.getDocument(),source);
  }finally{editor?.destroy();fixed?.destroy();for(const[name,descriptor]of previous){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];}dom.window.close();}
 });

@@ -1,0 +1,31 @@
+{
+  "unit": "DCE-005",
+  "scope": "partial literal search and replace UI/controller contribution",
+  "observedAt": "2026-10-17T05:41:58.060600+00:00",
+  "sourceFiles": {
+    "editor/search.mjs": "f6211ee513031af86f0d67811f7a620e53195cb39080e1bd9b5554c07d843553",
+    "editor/model.mjs": "aeb1872394003e01a831f1da456594a417c69fb0386f60469231d3d284eeb215",
+    "web/search-tools.jsx": "1ab8910a5391dd1c12397789726c129706f97a98f5ce4cd62b0c833ad611da83",
+    "web/app.jsx": "e56c354822a6812d88aa315458d57230cfe955e58fddda1a96ddd2d66eabeb5e",
+    "web/style.css": "956eda749cfe867b7e473f302b8fc6c7e4ef5599730dc8d782bf8d47a318a157",
+    "tests/search.test.mjs": "3911453516cf869f1c14b526b105ccc830c92a4dbe77606f99514287844df53b",
+    "tests/quill-ui.test.mjs": "aa190857e8cc41363978c42ea58ee89529472d0c2df0be99d2e63256f43f31f7",
+    "tests/editor.test.mjs": "d34c2838dc9c1ca59bc5697db4c87b4a6eeead085f23cf5489270847cfc0465b"
+  },
+  "tests": {
+    "localSuite": 96,
+    "searchCases": 9,
+    "domControls": "find/replace/undo/readonly exercised",
+    "browserBundle": "passed",
+    "realBrowserVisualQA": "pending"
+  },
+  "dependenciesChanged": false,
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Body text only; no section title search",
+    "No cross-reference or paragraph spanning matches",
+    "At most 1000 matches; no partial replace-all",
+    "Authenticated durable save and links/citations remain planned"
+  ]
+}

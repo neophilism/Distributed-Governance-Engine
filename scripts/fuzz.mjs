@@ -17,4 +17,4 @@ for(let iteration=0;iteration<2000;iteration++) {
  assert.equal(evaluateDecision({...args,mode:'public-input'}).canAdopt,false);
  if(iteration<100){const ds=ballots.map(b=>digest('ballot',b)),batch=merkleBatch(ds);ds.forEach((d,i)=>assert(verifyInclusion(d,batch.proofs[i],batch.root)));}
 }
-console.log('Passed 2,000 deterministic adversarial/property scenarios (seed 0xdec1de); not a cryptographic audit.');
+console.log('Passed 2,000 generated test cases with repeatable inputs (seed 0xdec1de); not a cryptographic audit.');
