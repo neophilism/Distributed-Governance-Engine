@@ -18,6 +18,11 @@ import {
 } from "../../server/identity-store.mjs";
 import { createOIDCLogin } from "../../server/oidc-login.mjs";
 import { createAccountHandler } from "../../server/account-http.mjs";
+import { createDocumentStore } from "../../server/document-store.mjs";
+import {
+  createDocumentRoutes,
+  documentBodyLimit,
+} from "../../server/document-http.mjs";
 import {
   createEngineApplication,
   nodeListener,
@@ -170,10 +175,20 @@ export async function accountFixture() {
     configuration: config,
     redirectUri: origin + "/auth/callback",
   });
-  const accounts = createAccountHandler({ store, login, origin }),
+  const accounts = createAccountHandler({
+      store,
+      login,
+      origin,
+      extensions: [
+        createDocumentRoutes({
+          documents: createDocumentStore({ identity: store, transaction }),
+        }),
+      ],
+    }),
     application = createEngineApplication({ accounts, origin });
   listener = nodeListener({
     origin,
+    bodyLimit: documentBodyLimit,
     application: async (request, context) => {
       const url = new URL(request.url);
       if (url.pathname !== "/fixture/authorize")

@@ -1,6 +1,6 @@
 # Shared account HTTP and UI — partial DCE-002
 
-The same engine supplies CivicQuill and CharterQuill sign-in, workspace membership and invitations. The account drawer is enabled only by the account server, not the static editor preview. Documents remain public samples with no server save in this contribution. Do not put private organization text into that sample.
+The same engine supplies CivicQuill and CharterQuill sign-in, workspace membership and invitations. The account drawer is enabled only by the account server, not the static editor preview. The later public saved-document contribution is described in PUBLIC_DOCUMENTS.md. Private organization storage remains unavailable until endpoint encryption is implemented.
 
 ## Routes and authority
 
@@ -28,7 +28,7 @@ Build the app, configure the exact HTTPS PUBLIC_ORIGIN and a real provider, regi
 
 Static serving has an explicit asset allowlist, no-store responses, no source/environment file serving, CSP, no-referrer and no-frame policies. The Node listener validates Host, bounds headers/body/time and uses TLS 1.3. Database certificates and hostnames are verified. TLS termination at any separate edge/proxy needs its own verified encrypted-hop design; this increment does not establish that deployment. Health is liveness, not production readiness.
 
-Migration 003 preserves applied 001/002, splits member read/write row policies for the own-account directory, adds invitation IDs/creator metadata and an active-session index. It grants read-only migration history to the runtime for startup checks. Historical invitations get generated IDs and null creator metadata; no historical identity/ballot/document is rewritten. Roll back by disabling routes, preserving schema and records.
+Account migration 003 preserves applied 001/002, splits member read/write row policies for the own-account directory, adds invitation IDs/creator metadata and an active-session index. It grants read-only migration history to the runtime for startup checks. Historical invitations get generated IDs and null creator metadata; no historical identity/ballot/document is rewritten. Roll back by disabling routes, preserving schema and records.
 
 ## Evidence and remaining scope
 

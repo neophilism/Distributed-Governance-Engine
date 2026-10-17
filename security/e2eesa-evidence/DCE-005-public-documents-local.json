@@ -1,0 +1,43 @@
+{
+  "units": [
+    "DCE-005",
+    "DCE-008"
+  ],
+  "scope": "partial public persistence/autosave/history/fixed input; not private realtime collaboration",
+  "observedAt": "2026-10-17T12:44:15.136460+00:00",
+  "sourceFiles": {
+    "migrations/004-public-documents.sql": "983d45f65d3e2988509156a70b62673fc05d2975fc080ec4b8b39b56859601bb",
+    "server/document-store.mjs": "c55d41e79b1cefb19ffe4c84c86547f5c5e8e1b6beaf18fc9e76a9bd1d5ed55b",
+    "server/document-http.mjs": "14ff4d4cf923bf98fe9520ab1177d35fb8d066f98f721130b5cff847b3915c39",
+    "server/account-http.mjs": "4aa304f8edab6afb70fc13091f8b56723308e9100551f087f2b3bc7f0f9420a8",
+    "server/identity-store.mjs": "9f211fc964f15c5b70fdc615d26fcc15051b49dd678d1d57b0f222b10afeb6ab",
+    "server/application.mjs": "a2337ac93217b5592e87b2220c3947e19f49f9f166d0b7920f448aa576079b01",
+    "server/start.mjs": "7a42eb5c588800e2c0864383b845a9e7e6f91c92cf8c690622e5ff6aa1779b38",
+    "editor/document-session.mjs": "a92ced749df36dec57d7651ce6e691afb7b6c2f2b92a2ad107742626a221148f",
+    "editor/model.mjs": "ba25535008c972fab600433b4d0db2eec85048611ed1a34440f016a2ef4023a3",
+    "web/document-library.jsx": "66d17a2ebffb2d30e74760e1ae7a05381fe364935e90c6b4ead0c7aca38f910c",
+    "web/app.jsx": "67d67fe5f0b9cf3200a333be161b692707ad52ccf2b59dfdb675dcf807e12e4c",
+    "tests/document-session.test.mjs": "73091e4f07c7ac76466f025928974c33347658fbb2137b45a11ec29768bdbe0f",
+    "tests/document-store.test.mjs": "842f35a405e5cfa6bc6cd92a2e18f195e66cd514bd75f1e47246490917ce1e72",
+    "tests/documents.browser.mjs": "f3e968c376f4aafd140530fe2e0b29754c532d1ed8840cc0a9a944c41be09e91",
+    "tests/identity-postgres.integration.mjs": "039346bf5e4bab66d8121133a88f5538f325c29509cbef50c9a4d5d4c88ca34b"
+  },
+  "localChecks": {
+    "tests": 125,
+    "generatedCases": 2000,
+    "browserJourneys": 2,
+    "browser": "HeadlessChrome/155.0.8059.84",
+    "bundle": "passed",
+    "desktopAndMobile": "inspected; no horizontal overflow"
+  },
+  "networkedPostgres": "required CI includes parallel stale-save and duplicate-command transactions; not run locally",
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Private endpoint encryption and realtime merge remain incomplete",
+    "Public anchoring is a durable pending outbox, not a chain receipt",
+    "Public creation disclosure includes all earlier versions; public link does not expose internal actor/command IDs",
+    "Unsaved client memory can be lost on browser crash; no encrypted offline cache yet",
+    "No proposals, ballots, adoption, signatures or payments in this contribution"
+  ]
+}

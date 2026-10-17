@@ -2,6 +2,8 @@ import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomBytes,randomUUID} from 'node:crypto';
 import pg from 'pg';
+import {createDocumentStore} from '../server/document-store.mjs';
+import {createLegalDocument} from '../src/legal-structure.mjs';
 import {createIdentityStore,pgTransactions,applyIdentityMigrations,verifyIdentityRuntime,AccessError} from '../server/identity-store.mjs';
 
 // Intentionally limited to a disposable loopback test database. Never accepts a production URL.
@@ -45,6 +47,18 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
     const members=await store.members(remainingOwner,tenantId);assert.equal(members.items.some(x=>x.accountId===c.accountId),results[0].status==='fulfilled');
     const record=(await owner.query('SELECT consumed_at,revoked_at FROM dge_identity.invitations WHERE id=$1',[pending.invitationId])).rows[0];assert.notEqual(Boolean(record.consumed_at),Boolean(record.revoked_at));
+  });
+  await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
+    const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
+    const document=createLegalDocument({id:randomUUID(),tenantId,title:'Parallel document'});
+    const initial=await documents.create(remainingOwner,tenantId,{document,commandId:randomUUID(),disclosure:'publish-all-revisions-v1'});
+    const edited=text=>({...structuredClone(document),revision:1,content:[{kind:'paragraph',id:document.content[0].id,inlines:[{kind:'text',text}]}]});
+    const results=await Promise.allSettled(['A','B'].map(text=>documents.save(remainingOwner,tenantId,document.id,{document:edited(text),commandId:randomUUID(),expectedVersion:1})));
+    assert.equal(results.filter(x=>x.status==='fulfilled').length,1);assert.equal(results.find(x=>x.status==='rejected').reason.code,'VERSION_CONFLICT');
+    const current=await documents.read(remainingOwner,tenantId,document.id);assert.equal(current.version,2);assert.equal(current.previousDigest,initial.digest);
+    const payload={document:{...structuredClone(current.document),revision:2},commandId:randomUUID(),expectedVersion:2};
+    const duplicate=await Promise.all([documents.save(remainingOwner,tenantId,document.id,payload),documents.save(remainingOwner,tenantId,document.id,payload)]);
+    assert.deepEqual(duplicate[0],duplicate[1]);assert.equal((await documents.history(document.id)).items.length,3);
   });
   await t.test('row security denies an unscoped pooled connection and session revocation survives reuse',async()=>{
     assert.equal((await runtime.query('SELECT id FROM dge_identity.tenants')).rows.length,0);

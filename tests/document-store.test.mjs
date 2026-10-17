@@ -1,0 +1,385 @@
+import { before, after, beforeEach, test } from "node:test";
+import assert from "node:assert/strict";
+import { randomBytes, randomUUID } from "node:crypto";
+import { PGlite } from "@electric-sql/pglite";
+import {
+  createIdentityStore,
+  applyIdentityMigrations,
+} from "../server/identity-store.mjs";
+import {
+  createDocumentStore,
+  PUBLIC_DISCLOSURE,
+} from "../server/document-store.mjs";
+import { createDocumentRoutes } from "../server/document-http.mjs";
+import { createAccountHandler } from "../server/account-http.mjs";
+import {
+  createLegalDocument,
+  legalDocumentDigest,
+} from "../src/legal-schema.mjs";
+
+let db, identity, documents, owner, reader, outsider, tenantId, handler;
+const origin = "https://quill.example";
+const transaction = (fn) =>
+  db.transaction(async (tx) => {
+    await tx.exec("SET LOCAL ROLE dge_identity_runtime");
+    return fn(tx);
+  });
+before(async () => {
+  db = await PGlite.create();
+  await applyIdentityMigrations((fn) => db.transaction(fn));
+});
+after(async () => db?.close());
+const user = async () => ({
+  ...(await identity.establishSession({
+    issuer: "https://provider.example",
+    subject: randomUUID(),
+    authenticatedAt: Date.now(),
+  })),
+  origin,
+});
+beforeEach(async () => {
+  await db.exec(
+    "TRUNCATE dge_identity.accounts,dge_identity.tenants,dge_identity.login_challenges CASCADE",
+  );
+  identity = createIdentityStore({
+    transaction,
+    origin,
+    sessionKey: randomBytes(32),
+    stateKey: randomBytes(32),
+  });
+  documents = createDocumentStore({ identity, transaction });
+  owner = await user();
+  reader = await user();
+  outsider = await user();
+  ({ tenantId } = await identity.createTenant(owner));
+  const invite = await identity.invite(
+    owner,
+    tenantId,
+    reader.accountId,
+    "viewer",
+  );
+  await identity.acceptInvitation(reader, tenantId, invite.invitationToken);
+  handler = createAccountHandler({
+    store: identity,
+    origin,
+    login: {},
+    extensions: [createDocumentRoutes({ documents })],
+  });
+});
+const command = (document) => ({
+  document,
+  commandId: randomUUID(),
+  disclosure: PUBLIC_DISCLOSURE,
+});
+const doc = () =>
+  createLegalDocument({
+    id: randomUUID(),
+    tenantId,
+    title: "Public test bill",
+  });
+const edit = (document, text) => ({
+  ...structuredClone(document),
+  revision: document.revision + 1,
+  content: [
+    {
+      kind: "paragraph",
+      id: document.content[0].id,
+      inlines: [{ kind: "text", text }],
+    },
+  ],
+});
+const call = (path, { who = owner, method = "GET", body, headers = {} } = {}) =>
+  handler(
+    new Request(origin + path, {
+      method,
+      headers: {
+        ...(who
+          ? {
+              cookie: "__Host-dge_session=" + who.sessionToken,
+              origin,
+              "x-dge-csrf": who.csrfToken,
+            }
+          : {}),
+        ...headers,
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }),
+    { peerAddress: "127.0.0.1" },
+  );
+
+test("durable public creation requires explicit disclosure, binds the legal context and reopens in a new store", async () => {
+  const document = doc();
+  await assert.rejects(
+    documents.create(owner, tenantId, {
+      ...command(document),
+      disclosure: "private",
+    }),
+    /PUBLIC_DISCLOSURE_REQUIRED/,
+  );
+  const payload = command(document),
+    created = await documents.create(owner, tenantId, payload);
+  assert.equal(created.digest, legalDocumentDigest(document));
+  assert.equal(created.anchorStatus, "pending");
+  const reopened = createDocumentStore({ identity, transaction });
+  assert.deepEqual(
+    (await reopened.read(reader, tenantId, document.id)).document,
+    document,
+  );
+  assert.deepEqual(
+    (await documents.publicRead(document.id)).document,
+    document,
+  );
+  assert.deepEqual(await documents.create(owner, tenantId, payload), created);
+  await assert.rejects(
+    documents.create(owner, tenantId, {
+      ...payload,
+      document: {
+        ...document,
+        metadata: { ...document.metadata, title: "Altered" },
+      },
+    }),
+    /COMMAND_REUSED/,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int AS n FROM dge_documents.anchor_outbox",
+      )
+    ).rows[0].n,
+    1,
+  );
+});
+test("workspace reads and writes enforce current membership and role, while public links disclose only consented content", async () => {
+  const { document } = await documents.create(owner, tenantId, command(doc()));
+  await assert.rejects(documents.list(outsider, tenantId));
+  await assert.rejects(documents.read(outsider, tenantId, document.id));
+  await assert.rejects(
+    documents.save(reader, tenantId, document.id, {
+      document: edit(document, "forged"),
+      expectedVersion: 1,
+      commandId: randomUUID(),
+    }),
+  );
+  assert.equal((await documents.list(reader, tenantId)).viewerRole, "viewer");
+  await identity.changeMember(owner, tenantId, reader.accountId, null);
+  await assert.rejects(documents.read(reader, tenantId, document.id));
+  assert.equal((await documents.publicRead(document.id)).visibility, "public");
+  await transaction(async (tx) => {
+    assert.equal(
+      (await tx.query("SELECT * FROM dge_documents.documents")).rows.length,
+      0,
+    );
+    await assert.rejects(
+      tx.query("DELETE FROM dge_documents.versions"),
+      /permission denied/,
+    );
+  });
+});
+test("exact storage versions prevent lost edits and old editions stay immutable with a linked digest and pending outbox", async () => {
+  const initial = await documents.create(owner, tenantId, command(doc())),
+    next = edit(initial.document, "The agency shall report quarterly.");
+  const payload = {
+      document: next,
+      expectedVersion: 1,
+      commandId: randomUUID(),
+    },
+    saved = await documents.save(owner, tenantId, next.id, payload);
+  assert.equal(saved.version, 2);
+  assert.equal(saved.previousDigest, initial.digest);
+  assert.equal(
+    (await documents.read(owner, tenantId, next.id)).previousDigest,
+    initial.digest,
+  );
+  await assert.rejects(
+    documents.save(owner, tenantId, next.id, {
+      ...payload,
+      commandId: randomUUID(),
+      document: edit(next, "Stale overwrite"),
+    }),
+    /VERSION_CONFLICT/,
+  );
+  assert.deepEqual(
+    await documents.save(owner, tenantId, next.id, payload),
+    saved,
+  );
+  assert.deepEqual(
+    (await documents.publicRead(next.id, { version: 1 })).document,
+    initial.document,
+  );
+  const history = await documents.history(next.id, { limit: 1 });
+  assert.equal(history.items[0].version, 2);
+  assert.equal(history.nextCursor, 2);
+  assert.equal(
+    (await documents.history(next.id, { before: 2 })).items[0].version,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int AS n FROM dge_documents.anchor_outbox",
+      )
+    ).rows[0].n,
+    2,
+  );
+});
+test("public-input freeze is idempotent, requires recent owner/admin authority and rejects source changes even by direct runtime SQL", async () => {
+  const initial = await documents.create(owner, tenantId, command(doc())),
+    payload = { expectedVersion: 1, commandId: randomUUID() };
+  await assert.rejects(
+    documents.freezeForInput(reader, tenantId, initial.document.id, payload),
+  );
+  const frozen = await documents.freezeForInput(
+    owner,
+    tenantId,
+    initial.document.id,
+    payload,
+  );
+  assert.equal(frozen.document.mode, "public-input");
+  assert.equal(frozen.document.lifecycle, "published");
+  assert.deepEqual(
+    await documents.freezeForInput(
+      owner,
+      tenantId,
+      initial.document.id,
+      payload,
+    ),
+    frozen,
+  );
+  await assert.rejects(
+    documents.save(owner, tenantId, initial.document.id, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      document: edit(initial.document, "forged"),
+    }),
+    /SOURCE_FROZEN/,
+  );
+  await assert.rejects(
+    transaction(async (tx) => {
+      await tx.query("SELECT set_config('dge.tenant_id',$1,true)", [tenantId]);
+      await tx.query(
+        "UPDATE dge_documents.documents SET current=$3,version=version+1 WHERE tenant_id=$1 AND id=$2",
+        [tenantId, initial.document.id, initial.document],
+      );
+    }),
+    /Frozen document source/,
+  );
+  assert.equal(
+    (await documents.publicRead(initial.document.id)).digest,
+    frozen.digest,
+  );
+});
+test("budgets roll back the whole write without orphan pointers, versions or commitments", async () => {
+  const limited = createDocumentStore({
+    identity,
+    transaction,
+    maxStoredBytes: 1500,
+    maxDocuments: 1,
+    maxVersions: 2,
+  });
+  const initial = await limited.create(owner, tenantId, command(doc()));
+  await assert.rejects(
+    limited.create(owner, tenantId, command(doc())),
+    /DOCUMENT_LIMIT_REACHED/,
+  );
+  await assert.rejects(
+    limited.save(owner, tenantId, initial.document.id, {
+      expectedVersion: 1,
+      commandId: randomUUID(),
+      document: edit(initial.document, "x".repeat(2000)),
+    }),
+    /STORAGE_LIMIT_REACHED/,
+  );
+  assert.equal(
+    (await documents.read(owner, tenantId, initial.document.id)).version,
+    1,
+  );
+  const next = await limited.save(owner, tenantId, initial.document.id, {
+    expectedVersion: 1,
+    commandId: randomUUID(),
+    document: edit(initial.document, "small"),
+  });
+  await assert.rejects(
+    limited.save(owner, tenantId, initial.document.id, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      document: edit(next.document, "third"),
+    }),
+    /VERSION_LIMIT_REACHED/,
+  );
+  assert.equal(
+    (await db.query("SELECT count(*)::int AS n FROM dge_documents.versions"))
+      .rows[0].n,
+    2,
+  );
+});
+test("HTTP routes preserve session protections, bound payloads, expose no private author IDs and report conflicts correctly", async () => {
+  const document = doc(),
+    path = "/api/workspaces/" + tenantId + "/documents",
+    payload = command(document);
+  assert.equal(
+    (
+      await call(path, {
+        method: "POST",
+        body: payload,
+        headers: { origin: "https://attacker.example" },
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(path, {
+        method: "POST",
+        body: { ...payload, visibility: "private" },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await call(path, { method: "POST", body: payload })).status,
+    201,
+  );
+  const publicPath = "/api/public/documents/" + document.id,
+    publicRead = await call(publicPath, { who: null });
+  assert.equal(publicRead.status, 200);
+  assert.ok(!(await publicRead.text()).includes(owner.accountId));
+  assert.equal(
+    (await call(publicPath + "?version=0", { who: null })).status,
+    400,
+  );
+  assert.equal(
+    (await call("/api/public/documents/" + randomUUID(), { who: null })).status,
+    404,
+  );
+  assert.equal(
+    (
+      await call(path + "/" + document.id, {
+        method: "PUT",
+        body: {
+          document: edit(document, "x".repeat(10000)),
+          expectedVersion: 1,
+          commandId: randomUUID(),
+        },
+      })
+    ).status,
+    200,
+  );
+  const stale = await call(path + "/" + document.id, {
+    method: "PUT",
+    body: {
+      document: edit(document, "stale"),
+      expectedVersion: 1,
+      commandId: randomUUID(),
+    },
+  });
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).error, "VERSION_CONFLICT");
+  assert.equal((await call(publicPath + "/history?limit=101")).status, 400);
+});
+
+test('stored source corruption fails closed instead of presenting a mismatched digest as verified content',async()=>{
+  const initial=await documents.create(owner,tenantId,command(doc()));
+  await db.query('UPDATE dge_documents.versions SET digest=$1 WHERE document_id=$2',['0'.repeat(64),initial.document.id]);
+  await assert.rejects(documents.publicRead(initial.document.id,{version:1}),/DOCUMENT_INTEGRITY_ERROR/);
+});
