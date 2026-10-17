@@ -1,6 +1,6 @@
 # Exact text proposals — partial DCE-009
 
-Saved public documents now support highlighting a range within one body paragraph, publishing replacement wording and a concise rationale, and reviewing suggestions in a slide-out panel. Suggestions are stored independently and do not edit the source. Public-input sources remain fixed at every layer. Existing account/workspace roles authorize creation; open-public participation, structured points, ranking, ballots and adoption are not implemented by this increment.
+Saved public documents now support highlighting a range within one body paragraph, publishing replacement wording and a concise rationale, and reviewing suggestions in a slide-out panel. Suggestions are stored independently and do not edit the source. Public-input sources remain fixed at every layer. Existing account/workspace roles authorize creation; open-public participation, structured points/ranking are added by the later STRUCTURED_DISCUSSION.md contribution; decision ballots and adoption remain pending.
 
 ## Selection and integrity contract
 

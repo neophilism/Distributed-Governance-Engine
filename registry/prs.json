@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 11,
+  "roadmapVersion": 12,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T13:00:31.329Z",
+  "observedAt": "2026-10-17T13:28:28.990Z",
   "units": [
     {
       "id": "DCE-001",
@@ -996,16 +996,16 @@
       "id": 4900254080,
       "number": 9,
       "title": "DCE-009: Publish exact-version text suggestions in the shared Quill panel (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/9",
       "createdAt": "2026-10-17T13:00:04Z",
-      "updatedAt": "2026-10-17T13:00:04Z",
-      "mergedAt": null,
-      "closedAt": null,
+      "updatedAt": "2026-10-17T13:04:32Z",
+      "mergedAt": "2026-10-17T13:04:32Z",
+      "closedAt": "2026-10-17T13:04:32Z",
       "draft": false,
-      "headSha": "1f8cea0175186b4081821f124bc80f33d22bcedb",
+      "headSha": "dc631f71811e5ff7d93501ef156028032c7f7067",
       "baseRef": "main",
-      "mergeCommitSha": "a4c06b758855406cf1c918be5e234cdfdfd28f33"
+      "mergeCommitSha": "ca0761f9440daba7221a001f43bc19fe10f478a0"
     }
   ]
 }

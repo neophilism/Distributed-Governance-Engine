@@ -17,6 +17,11 @@ import {
   applyIdentityMigrations,
 } from "../../server/identity-store.mjs";
 import { createOIDCLogin } from "../../server/oidc-login.mjs";
+import { createDiscussionStore } from "../../server/discussion-store.mjs";
+import {
+  createDiscussionRoutes,
+  discussionBodyLimit,
+} from "../../server/discussion-http.mjs";
 import { createProposalStore } from "../../server/proposal-store.mjs";
 import {
   createProposalRoutes,
@@ -185,6 +190,12 @@ export async function accountFixture() {
       login,
       origin,
       extensions: [
+        createDiscussionRoutes({
+          discussion: createDiscussionStore({
+            identity: store,
+            transaction: transaction,
+          }),
+        }),
         createProposalRoutes({
           proposals: createProposalStore({
             identity: store,
@@ -200,7 +211,11 @@ export async function accountFixture() {
   listener = nodeListener({
     origin,
     bodyLimit: (path) =>
-      Math.max(documentBodyLimit(path), proposalBodyLimit(path)),
+      Math.max(
+        documentBodyLimit(path),
+        proposalBodyLimit(path),
+        discussionBodyLimit(path),
+      ),
     application: async (request, context) => {
       const url = new URL(request.url);
       if (url.pathname !== "/fixture/authorize")

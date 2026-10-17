@@ -6,3 +6,5 @@ export * from './legal-schema.mjs';
 
 export * from './text-selections.mjs';
 export * from './legal-proposals.mjs';
+
+export * from './discussion.mjs';

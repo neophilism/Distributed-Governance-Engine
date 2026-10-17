@@ -1,3 +1,4 @@
+import { DiscussionPanel } from "./discussion-panel.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { createAccountAPI } from "./account-api.mjs";
 const api = createAccountAPI();
@@ -247,10 +248,11 @@ export function ProposalPanel({
                 <code className="digest">{selected.digest}</code>Blockchain
                 anchoring pending.
               </p>
-              <p>
-                The source text stays unchanged while this suggestion is
-                reviewed.
-              </p>
+              <DiscussionPanel
+                key={selected.proposal.id}
+                document={doc}
+                proposal={selected.proposal}
+              />
             </section>
           )}
           <h3>All suggestions</h3>

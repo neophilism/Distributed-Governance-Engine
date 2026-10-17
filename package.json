@@ -33,7 +33,9 @@
     "./document-session": "./editor/document-session.mjs",
     "./text-selections": "./src/text-selections.mjs",
     "./legal-proposals": "./src/legal-proposals.mjs",
-    "./proposal-store": "./server/proposal-store.mjs"
+    "./proposal-store": "./server/proposal-store.mjs",
+    "./discussion": "./src/discussion.mjs",
+    "./discussion-store": "./server/discussion-store.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",

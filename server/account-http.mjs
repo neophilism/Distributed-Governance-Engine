@@ -73,6 +73,14 @@ export async function boundedJson(
   try {
     body = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+      (key, value) => {
+        if (
+          key.includes("\0") ||
+          (typeof value === "string" && value.includes("\0"))
+        )
+          throw Error("Unsupported JSON character");
+        return value;
+      },
     );
   } catch {
     throw new HttpError(400, "INVALID_JSON");
@@ -193,7 +201,8 @@ export function createAccountHandler({
         if (result !== null)
           return json(
             result,
-            request.method === "POST" && /\/(?:documents|proposals)$/.test(url.pathname)
+            request.method === "POST" &&
+              /\/(?:documents|proposals|points)$/.test(url.pathname)
               ? 201
               : 200,
           );

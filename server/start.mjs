@@ -8,6 +8,11 @@ import {
   verifyIdentityRuntime,
 } from "./identity-store.mjs";
 import { discoverIdentityProvider, createOIDCLogin } from "./oidc-login.mjs";
+import { createDiscussionStore } from "./discussion-store.mjs";
+import {
+  createDiscussionRoutes,
+  discussionBodyLimit,
+} from "./discussion-http.mjs";
 import { createProposalStore } from "./proposal-store.mjs";
 import { createProposalRoutes, proposalBodyLimit } from "./proposal-http.mjs";
 import { createAccountHandler } from "./account-http.mjs";
@@ -62,6 +67,12 @@ try {
       login,
       origin,
       extensions: [
+        createDiscussionRoutes({
+          discussion: createDiscussionStore({
+            identity: store,
+            transaction: pgTransactions(pool),
+          }),
+        }),
         createProposalRoutes({
           proposals: createProposalStore({
             identity: store,
@@ -89,7 +100,11 @@ try {
     key,
     cert,
     bodyLimit: (path) =>
-      Math.max(documentBodyLimit(path), proposalBodyLimit(path)),
+      Math.max(
+        documentBodyLimit(path),
+        proposalBodyLimit(path),
+        discussionBodyLimit(path),
+      ),
   });
   const port = Number(process.env.PORT ?? 8443);
   if (!Number.isInteger(port) || port < 1 || port > 65535)

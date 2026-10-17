@@ -5,6 +5,7 @@ import pg from 'pg';
 import {createDocumentStore} from '../server/document-store.mjs';
 import {createLegalDocument} from '../src/legal-structure.mjs';
 import {createProposalStore} from '../server/proposal-store.mjs';
+import {createDiscussionStore} from '../server/discussion-store.mjs';
 import {createIdentityStore,pgTransactions,applyIdentityMigrations,verifyIdentityRuntime,AccessError} from '../server/identity-store.mjs';
 
 // Intentionally limited to a disposable loopback test database. Never accepts a production URL.
@@ -72,6 +73,17 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const race=await Promise.allSettled([proposals.create(contributor,tenantId,document.id,{...input,commandId:randomUUID()}),store.changeMember(remainingOwner,tenantId,contributor.accountId,null)]);assert.equal(race[1].status,'fulfilled');
     await assert.rejects(proposals.create(contributor,tenantId,document.id,{...input,commandId:randomUUID()}),AccessError);
     assert.equal((await proposals.list(document.id)).items.length,race[0].status==='fulfilled'?2:1);
+  });
+  await t.test('simultaneous argument vote changes conserve counts and duplicate requests count once',async()=>{
+    const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)}),proposals=createProposalStore({identity:store,transaction:pgTransactions(runtime)}),discussion=createDiscussionStore({identity:store,transaction:pgTransactions(runtime)});
+    const document=structuredClone(createLegalDocument({id:randomUUID(),tenantId,title:'Point vote race'}));document.content[0].inlines=[{kind:'text',text:'Report annually.'}];await documents.create(remainingOwner,tenantId,{document,commandId:randomUUID(),disclosure:'publish-all-revisions-v1'});
+    const p=await proposals.create(remainingOwner,tenantId,document.id,{baseVersion:1,selection:{blockId:document.content[0].id,start:7,end:15,quote:'annually'},replacement:'quarterly',rationale:'Timely reports.',commandId:randomUUID(),disclosure:'publish-proposal-v1'}),proposalId=p.proposal.id;
+    const point=await discussion.create(remainingOwner,tenantId,document.id,proposalId,{position:'support',text:'Frequent reports aid oversight.',commandId:randomUUID(),disclosure:'publish-point-v1'});
+    const voter=await user(),invite=await store.invite(remainingOwner,tenantId,voter.accountId,'participant');await store.acceptInvitation(voter,tenantId,invite.invitationToken);
+    const initial={value:1,expectedVoteVersion:0,commandId:randomUUID()};const duplicates=await Promise.all([discussion.vote(voter,tenantId,document.id,proposalId,point.point.id,initial),discussion.vote(voter,tenantId,document.id,proposalId,point.point.id,initial)]);assert.deepEqual(duplicates[0],duplicates[1]);assert.equal(duplicates[0].up,1);
+    const race=await Promise.allSettled([-1,0].map(value=>discussion.vote(voter,tenantId,document.id,proposalId,point.point.id,{value,expectedVoteVersion:1,commandId:randomUUID()})));assert.equal(race.filter(item=>item.status==='fulfilled').length,1);assert.equal(race.find(item=>item.status==='rejected').reason.code,'POINT_VOTE_CONFLICT');
+    const actual=(await discussion.mine(voter,tenantId,document.id,proposalId,{pointIds:[point.point.id]})).items[0],publicPoint=(await discussion.list(document.id,proposalId)).items[0];assert.equal(publicPoint.up,actual.value===1?1:0);assert.equal(publicPoint.down,actual.value===-1?1:0);assert.equal(actual.voteVersion,2);
+    assert.equal((await owner.query('SELECT count(*)::int AS n FROM dge_discussion.vote_events WHERE point_id=$1',[point.point.id])).rows[0].n,2);
   });
   await t.test('row security denies an unscoped pooled connection and session revocation survives reuse',async()=>{
     assert.equal((await runtime.query('SELECT id FROM dge_identity.tenants')).rows.length,0);
