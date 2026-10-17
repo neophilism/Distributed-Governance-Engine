@@ -13,7 +13,7 @@ const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time});
 before(async()=>{db=await PGlite.create();assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:true});assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:false});});
 after(async()=>{await db?.close();});
 beforeEach(async()=>{await db.exec('TRUNCATE dge_identity.accounts,dge_identity.tenants,dge_identity.login_challenges CASCADE');time=Date.now();store=createIdentityStore(options());});
-const account=async(subject='owner',issuer='https://identity.example')=>({...await store.establishSession({issuer,subject}),origin});
+const account=async(subject='owner',issuer='https://identity.example')=>({...await store.establishSession({issuer,subject,authenticatedAt:time}),origin});
 const denied=promise=>assert.rejects(promise,error=>error instanceof AccessError);
 const join=async(owner,tenantId,user,role='editor')=>{const {invitationToken}=await store.invite(owner,tenantId,user.accountId,role);await store.acceptInvitation(user,tenantId,invitationToken);};
 
@@ -88,6 +88,29 @@ test('sensitive membership changes require login within five minutes',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;
   assert.equal((await store.members(owner,tenantId)).items.length,1);await denied(store.invite(owner,tenantId,target.accountId,'viewer'));
   const fresh=await account();await store.invite(fresh,tenantId,target.accountId,'viewer');
+});
+test('new session creation does not reset the identity-provider authentication clock',async()=>{
+  const earlier=time-299000,session={...await store.establishSession({issuer:'https://identity.example',subject:'earlier-auth',authenticatedAt:earlier}),origin};
+  assert.ok(await store.createTenant(session));time+=1001;
+  await denied(store.createTenant(session));assert.ok(await store.account(session.sessionToken));
+  for(const authenticatedAt of [undefined,time-300001,time+30001,NaN])await denied(store.establishSession({issuer:'https://identity.example',subject:'invalid-time',authenticatedAt}));
+});
+test('a backward clock jump does not authorize a session issued in the future',async()=>{
+  const session=await account();time-=1;await denied(store.account(session.sessionToken));
+});
+test('the 002 upgrade preserves old records, rejects their sessions, and leaves 001 unchanged',async()=>{
+  const legacy=await PGlite.create();
+  try{
+    const {identityMigration}=await import('../server/identity-store.mjs'),{createHmac}=await import('node:crypto');await legacy.exec(await identityMigration());
+    const id=randomUUID(),raw=randomBytes(32).toString('base64url'),digest=createHmac('sha256',sessionKey).update('session\0'+raw).digest('hex');
+    await legacy.query('INSERT INTO dge_identity.accounts(id,issuer,subject,created_at) VALUES($1,$2,$3,$4)',[id,'https://identity.example','legacy',new Date(time)]);
+    await legacy.query('INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at) VALUES($1,$2,1,$3,$4,$5)',[digest,id,'0'.repeat(64),new Date(time),new Date(time+3600000)]);
+    await applyIdentityMigrations(fn=>legacy.transaction(fn));
+    const upgraded=createIdentityStore({...options(),transaction:fn=>legacy.transaction(async tx=>{await tx.exec('SET LOCAL ROLE dge_identity_runtime');return fn(tx);})});
+    await denied(upgraded.account(raw));assert.equal((await legacy.query('SELECT id FROM dge_identity.accounts WHERE id=$1',[id])).rows.length,1);
+    assert.equal((await legacy.query('SELECT count(*)::int AS n FROM dge_identity.sessions')).rows[0].n,1);
+    await assert.rejects(legacy.query('INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at) VALUES($1,$2,1,$3,$4,$5)',['1'.repeat(64),id,'0'.repeat(64),new Date(time),new Date(time+3600000)]),/authenticated_session_time/);
+  }finally{await legacy.close();}
 });
 test('invitation expires without reauthorizing an account through a fresh login',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner),invite=await store.invite(owner,tenantId,target.accountId,'viewer');

@@ -1,0 +1,27 @@
+{
+  "unit": "DCE-002",
+  "scope": "partial identity provider authentication time hardening",
+  "observedAt": "2026-10-17T05:46:54.599925+00:00",
+  "sourceFiles": {
+    "migrations/001-identity.sql": "ba9e4422c8182933154d1988da5747fbedb2f339afed615dfba138e6d5737dd3",
+    "migrations/002-session-authentication-time.sql": "b4686f1074874cd221198c4148d8e661f3168e524a0f3229894085f50604979b",
+    "server/identity-store.mjs": "31deb9e071617ee3d8b427823274bceff26ad0b78c85044e22abfc4177d3b655",
+    "server/oidc-login.mjs": "5c5e7058eed64a8ca5f8e30302f038c9acbfdbd693ca6ccab4e1ebafba13d4e2",
+    "tests/identity.test.mjs": "b4491abcc23304b1c8bbdd7d21298aad473b4ec83535ebebcd6a47040c60b3cc",
+    "tests/identity-postgres.integration.mjs": "76ae2b890296b9013009f03a0149639db1dcb301a7c535367e1ad83dced621d1"
+  },
+  "localChecks": {
+    "tests": 99,
+    "identityTests": 27,
+    "browserBundle": "passed"
+  },
+  "dependenciesChanged": false,
+  "productionDeployment": false,
+  "independentHumanReview": false,
+  "limitations": [
+    "Production identity routes remain undeployed",
+    "Provider and server clock trust is required",
+    "Older sessions require fresh login; historical records retained",
+    "Recovery, device trust, abuse/retention and HTTP/account UI remain incomplete"
+  ]
+}

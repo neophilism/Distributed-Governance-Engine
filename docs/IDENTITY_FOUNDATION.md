@@ -4,7 +4,7 @@ This server library adds OpenID Connect (OIDC) login, database-backed sessions, 
 
 ## Storage and rollout
 
-Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies the additive 001 migration, records its checksum and refuses edited history. The migration credential must remain separate from request credentials. Preserve 001 after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.
+Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies ordered migrations 001/002, records their checksums and refuses edited history. The migration credential must remain separate from request credentials. Preserve applied files after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.
 
 An administrator grants the `dge_identity_runtime` permission group to a dedicated service login. Never connect ordinary requests as the schema owner or a Neon/Postgres administrator. The group cannot log in or bypass row security. Organization tables use transaction-local row policies, with active membership/role checks in the service. These policies protect against query mistakes; they do not make the authorized identity service untrusted.
 
@@ -13,6 +13,10 @@ An administrator grants the `dge_identity_runtime` permission group to a dedicat
 Configure `discoverIdentityProvider` from server configuration only. Issuer and callback require HTTPS. The real openid-client library validates issuer, audience, signature, state, nonce, code binding and fresh authentication time. PKCE binds a returned authorization code to the flow that requested it. Login state is browser-cookie-bound, encrypted under a separate metadata key, expires after ten minutes and is consumed once. A failed exchange requires restarting login. Provider tokens are neither persisted nor returned by this adapter.
 
 Account identity is the exact issuer/subject pair; email never links accounts. `establishSession` is a **trusted server adapter boundary**: call it only after successful provider verification. Never expose it as a route accepting caller-supplied identity claims.
+
+The adapter must pass `authenticatedAt` in milliseconds from the verified OIDC `auth_time` claim. The five-minute privileged-action window uses this actual authentication time, not app-session creation time. Creation rejects missing, stale or excessively future authentication times. A backward server-clock jump also denies a session whose issuance is now in the future. Trusted server/provider clocks remain an operational assumption.
+
+Migration 002 leaves historical sessions/accounts intact but old sessions without proven authentication time cannot authorize requests; those users must log in again. The new constraint is enforced for new/updated rows without pretending historical rows contain that evidence. Deploy with identity routes disabled until migrations and the updated service are ready; do not mix older session-issuing code with the new schema. No document, ballot or signed record is rewritten.
 
 Session tokens contain 32 random bytes; only keyed SHA-256 digests are stored. Cookies are host-only, Secure, HttpOnly and SameSite=Lax. Sessions last eight hours by default, configurable from one minute to one day. Logout revokes a stored session. Logout-all changes the account authentication version, invalidating all earlier sessions on their next request. Suspended accounts fail stored-session checks. Login/recovery never authorizes a content-encryption device.
 
