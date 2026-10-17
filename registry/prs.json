@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 8,
+  "roadmapVersion": 9,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T12:44:16.392Z",
+  "observedAt": "2026-10-17T12:45:08.596Z",
   "units": [
     {
       "id": "DCE-001",
@@ -119,7 +119,8 @@
       "operationalAcceptance": "unverified",
       "contributingPrs": [
         3,
-        5
+        5,
+        8
       ]
     },
     {
@@ -183,8 +184,11 @@
         "Concurrent browser sessions, reconnect/replay, oversized updates, unauthorized-room writes, CRDT compaction and memory-budget tests."
       ],
       "specification": "docs/prs/DCE-008.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        8
+      ]
     },
     {
       "id": "DCE-009",
@@ -969,6 +973,21 @@
       "headSha": "e885f3fe7ab57c5093715576bda710a36b7fa9b1",
       "baseRef": "main",
       "mergeCommitSha": "0102d6c4b3420959db6d92ede4aa8076f676682c"
+    },
+    {
+      "id": 4900152189,
+      "number": 8,
+      "title": "DCE-005: Save public documents, preserve versions and freeze feedback sources (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/8",
+      "createdAt": "2026-10-17T12:44:52Z",
+      "updatedAt": "2026-10-17T12:44:52Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false,
+      "headSha": "0b10a1ee64bb7bd403dceda36a6921bc94528507",
+      "baseRef": "main",
+      "mergeCommitSha": "eb60c9aa29c7b4703c3bfd14a20092b19f267184"
     }
   ]
 }
