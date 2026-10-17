@@ -425,12 +425,28 @@ function App() {
         "Place the cursor in a suitable paragraph to use this control.",
       );
   }
+  function citationDetails(current = {}) {
+    const title = window.prompt("Optional source title", current.title ?? "");
+    if (title === null) return;
+    const publisher = window.prompt("Optional publisher", current.citationMetadata?.publisher ?? "");
+    if (publisher === null) return;
+    const publishedOn = window.prompt("Optional publication date (YYYY-MM-DD)", current.citationMetadata?.publishedOn ?? "");
+    if (publishedOn === null) return;
+    const pinpoint = window.prompt("Optional pinpoint (page, section, or paragraph)", current.citationMetadata?.pinpoint ?? "");
+    if (pinpoint === null) return;
+    const accessedOn = window.prompt("Optional access date (YYYY-MM-DD)", current.citationMetadata?.accessedOn ?? "");
+    if (accessedOn === null) return;
+    const citationMetadata = { publisher, publishedOn, pinpoint, accessedOn };
+    return { title: title || null, citationMetadata: Object.values(citationMetadata).some((value) => value.trim()) ? citationMetadata : null };
+  }
   function addExternal(kind) {
     const targetUrl = window.prompt(kind === "link" ? "HTTPS link address" : "HTTPS citation source");
     if (targetUrl === null) return;
     const label = kind === "citation" ? window.prompt("Citation label") : undefined;
     if (kind === "citation" && label === null) return;
-    run(kind === "link" ? insertExternalLink(targetUrl) : insertCitation(targetUrl, label));
+    const details = kind === "citation" ? citationDetails() : {};
+    if (details === undefined) return;
+    run(kind === "link" ? insertExternalLink(targetUrl) : insertCitation(targetUrl, label, details.title, details.citationMetadata));
   }
   function editExternal() {
     const current = controller.current
@@ -444,13 +460,16 @@ function App() {
     if (targetUrl === null) return;
     const label = window.prompt("Visible label", current.label);
     if (label === null) return;
-    const title = window.prompt("Optional source title", current.title ?? "");
-    if (title === null) return;
+    const title = current.kind === "link" ? window.prompt("Optional source title", current.title ?? "") : null;
+    if (current.kind === "link" && title === null) return;
+    const details = current.kind === "citation" ? citationDetails(current) : { title };
+    if (details === undefined) return;
     run(
       updateExternalInline({
         targetUrl,
         label,
-        title: title || null,
+        title: details.title || null,
+        ...(current.kind === "citation" ? { citationMetadata: details.citationMetadata } : {}),
       }),
     );
   }

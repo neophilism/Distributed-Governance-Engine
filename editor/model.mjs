@@ -5,7 +5,7 @@ import {baseKeymap,toggleMark} from 'prosemirror-commands';
 import {history,undo,redo} from 'prosemirror-history';
 import {keymap} from 'prosemirror-keymap';
 import {wrapInList,splitListItem} from 'prosemirror-schema-list';
-import {validateLegalDocument,legalOutline,normalizeExternalUrl} from '../src/legal-structure.mjs';
+import {validateLegalDocument,legalOutline,normalizeExternalUrl,normalizeCitationMetadata} from '../src/legal-structure.mjs';
 import {findNextText,findTextMatches} from './search.mjs';
 import {validateTextSelection} from '../src/text-selections.mjs';
 
@@ -28,7 +28,7 @@ export const editorSchema=new Schema({
   reference:{inline:true,group:'inline',atom:true,attrs:{targetId:{},label:{default:null}},toDOM:node=>['span',{'data-reference':node.attrs.targetId},node.attrs.label??'['+node.attrs.targetId+']']},
   footnote_reference:{inline:true,group:'inline',atom:true,attrs:{targetId:{},label:{default:null}},toDOM:node=>['sup',{'data-footnote-reference':node.attrs.targetId},node.attrs.label??'['+node.attrs.targetId+']']},
   external_link:{inline:true,group:'inline',atom:true,attrs:{targetUrl:{},label:{},title:{default:null}},toDOM:node=>['a',{href:node.attrs.targetUrl,title:node.attrs.title,rel:'noreferrer noopener'},node.attrs.label]},
-  citation:{inline:true,group:'inline',atom:true,attrs:{targetUrl:{},label:{},title:{default:null}},toDOM:node=>['cite',['a',{href:node.attrs.targetUrl,title:node.attrs.title,rel:'noreferrer noopener'},node.attrs.label]]}
+  citation:{inline:true,group:'inline',atom:true,attrs:{targetUrl:{},label:{},title:{default:null},citationMetadata:{default:null}},toDOM:node=>['cite',['a',{href:node.attrs.targetUrl,title:node.attrs.title,rel:'noreferrer noopener'},node.attrs.label]]}
  },
  marks:{
   bold:{parseDOM:[{tag:'strong'},{tag:'b'}],toDOM:()=>['strong',0]},
@@ -46,11 +46,12 @@ function toNode(node,labels) {
  if(kind==='section')attributes.numberLabel=labels.get(node.id)??'';
  if(attributes.label===undefined&&['reference','footnote-reference'].includes(kind))attributes.label=null;
  if(attributes.title===undefined&&['link','citation'].includes(kind))attributes.title=null;
+ if(kind==='citation'&&attributes.citationMetadata===undefined)attributes.citationMetadata=null;
  return editorSchema.nodes[types[kind]??kind].createChecked(attributes,(inlines??children??[]).map(child=>toNode(child,labels)).filter(Boolean));
 }
 function fromNode(node) {
  if(node.isText)return {kind:'text',text:node.text,...(node.marks.length?{marks:node.marks.map(m=>m.type.name)}:{})};
- const kind=kinds[node.type.name]??node.type.name,attributes={...node.attrs};if(attributes.label===null)delete attributes.label;if(attributes.title===null)delete attributes.title;
+ const kind=kinds[node.type.name]??node.type.name,attributes={...node.attrs};if(attributes.label===null)delete attributes.label;if(attributes.title===null)delete attributes.title;if(attributes.citationMetadata===null)delete attributes.citationMetadata;
  delete attributes.numberLabel;
  const base={kind,...attributes};
  if(['reference','footnote-reference','link','citation'].includes(kind))return base;
@@ -103,14 +104,14 @@ export function mountLegalEditor(element,initial,{onChange=()=>{},onError=()=>{}
  },destroy:()=>view.destroy(),findNext(query,options={}){const result=findTextMatches(view.state,query,options);const found=findNextText(query,options)(view.state,view.dispatch);if(found)view.focus();return {...result,found};},command(command){if(readOnly||!canDirectlyEdit(current))return false;const before=rejectedTransactions,done=command(view.state,view.dispatch,view);view.focus();return done&&before===rejectedTransactions;}};
 }
 export const commands={undo,redo,bold:toggleMark(editorSchema.marks.bold),italic:toggleMark(editorSchema.marks.italic),underline:toggleMark(editorSchema.marks.underline),strike:toggleMark(editorSchema.marks.strike),numberedList:wrapInList(editorSchema.nodes.legal_list,{style:'decimal'}),bulletList:wrapInList(editorSchema.nodes.legal_list,{style:'bullet'})};
-function insertExternalInline(kind,targetUrl,label,title) {return (state,dispatch)=>{
- let url;try{url=normalizeExternalUrl(targetUrl);}catch{return false;}
+function insertExternalInline(kind,targetUrl,label,title,citationMetadata) {return (state,dispatch)=>{
+ let url,metadata=null;try{url=normalizeExternalUrl(targetUrl);metadata=kind==='citation'?normalizeCitationMetadata(citationMetadata):null;}catch{return false;}
  const selected=state.selection.empty?'':state.doc.textBetween(state.selection.from,state.selection.to,'','');const text=(label??selected).trim();
- if(!text||text.length>1000||title!==undefined&&(typeof title!=='string'||title.length>1000)||!state.selection.$from.sameParent(state.selection.$to)||!state.selection.$from.parent.isTextblock)return false;
- if(dispatch){const node=editorSchema.nodes[kind].createChecked({targetUrl:url,label:text,title:title??null});dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());}return true;
+ if(!text||text.length>1000||title!==undefined&&title!==null&&(typeof title!=='string'||title.length>1000)||!state.selection.$from.sameParent(state.selection.$to)||!state.selection.$from.parent.isTextblock)return false;
+ if(dispatch){const node=editorSchema.nodes[kind].createChecked({targetUrl:url,label:text,title:title??null,...(kind==='citation'?{citationMetadata:metadata}: {})});dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());}return true;
 };}
 export const insertExternalLink=(targetUrl,label,title)=>insertExternalInline('external_link',targetUrl,label,title);
-export const insertCitation=(targetUrl,label,title)=>insertExternalInline('citation',targetUrl,label,title);
+export const insertCitation=(targetUrl,label,title,citationMetadata)=>insertExternalInline('citation',targetUrl,label,title,citationMetadata);
 function externalInlineSelection(state) {
  const {selection}=state;
  if(!(selection instanceof NodeSelection)||!['external_link','citation'].includes(selection.node.type.name))return null;
@@ -118,15 +119,16 @@ function externalInlineSelection(state) {
 }
 export function selectedExternalInline(state) {
  const selected=externalInlineSelection(state);if(!selected)return null;
- const {targetUrl,label,title}=selected.node.attrs;
- return {kind:selected.node.type.name==='external_link'?'link':'citation',targetUrl,label,...(title===null?{}:{title})};
+ const {targetUrl,label,title,citationMetadata}=selected.node.attrs;
+ return {kind:selected.node.type.name==='external_link'?'link':'citation',targetUrl,label,...(title===null?{}:{title}),...(citationMetadata==null?{}:{citationMetadata:structuredClone(citationMetadata)})};
 }
-export function updateExternalInline({targetUrl,label,title}={}) {return (state,dispatch)=>{
+export function updateExternalInline({targetUrl,label,title,citationMetadata}={}) {return (state,dispatch)=>{
  const selected=externalInlineSelection(state);if(!selected)return false;
- let url;try{url=normalizeExternalUrl(targetUrl);}catch{return false;}
+ let url,nextMetadata;try{url=normalizeExternalUrl(targetUrl);nextMetadata=selected.node.type.name==='citation'?citationMetadata===undefined?selected.node.attrs.citationMetadata:normalizeCitationMetadata(citationMetadata):null;}catch{return false;}
+ if(selected.node.type.name==='external_link'&&citationMetadata!==undefined)return false;
  const text=typeof label==='string'?label.trim():'',nextTitle=title===undefined?selected.node.attrs.title:title;
  if(!text||text.length>1000||nextTitle!==null&&(typeof nextTitle!=='string'||nextTitle.length>1000))return false;
- if(dispatch)dispatch(state.tr.setNodeMarkup(selected.from,selected.node.type,{targetUrl:url,label:text,title:nextTitle??null}).scrollIntoView());
+ if(dispatch)dispatch(state.tr.setNodeMarkup(selected.from,selected.node.type,{targetUrl:url,label:text,title:nextTitle??null,...(selected.node.type.name==='citation'?{citationMetadata:nextMetadata}: {})}).scrollIntoView());
  return true;
 };}
 export function removeExternalInline(state,dispatch) {

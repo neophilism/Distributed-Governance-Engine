@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 17,
+  "roadmapVersion": 18,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T23:28:30Z",
+  "observedAt": "2026-10-17T23:35:00Z",
   "units": [
     {
       "id": "DCE-001",
@@ -126,7 +126,8 @@
         8,
         14,
         15,
-        16
+        16,
+        17
       ]
     },
     {
@@ -1113,16 +1114,31 @@
       "id": 4904818047,
       "number": 16,
       "title": "DCE-005: Verify IME input and interrupted save recovery",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/16",
       "createdAt": "2026-10-17T23:27:22Z",
-      "updatedAt": "2026-10-17T23:27:22Z",
+      "updatedAt": "2026-10-17T23:31:26Z",
+      "mergedAt": "2026-10-17T23:31:26Z",
+      "closedAt": "2026-10-17T23:31:26Z",
+      "draft": false,
+      "headSha": "7b109c9bd35ac5ef3f2525a1e1f465b262d7c5c1",
+      "baseRef": "main",
+      "mergeCommitSha": "74e50aa6986f935ae8dcd8cca76a3a1c1c401650"
+    },
+    {
+      "id": 4904859889,
+      "number": 17,
+      "title": "DCE-005: Add structured citation metadata",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/17",
+      "createdAt": "2026-10-17T23:34:36Z",
+      "updatedAt": "2026-10-17T23:34:36Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "6d4b56613d3003454c8432dc0b5f3eb4f1fff8c7",
+      "headSha": "69cda1b3d90152c1810cd756bb4eb80e2c80c403",
       "baseRef": "main",
-      "mergeCommitSha": "f6d46a83829af6d9d27b6726ae1fc9e634a70aa8"
+      "mergeCommitSha": "693ac9fa749eefb2cd26a966d9811285f04f2c8f"
     }
   ]
 }

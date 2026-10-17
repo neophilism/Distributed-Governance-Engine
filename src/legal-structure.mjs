@@ -43,6 +43,24 @@ export function normalizeExternalUrl(value) {
  invariant(url.protocol==='https:'&&url.hostname&&url.username===''&&url.password==='','External URLs must use HTTPS without user information');
  return url.href;
 }
+function validIsoDate(value) {
+ invariant(/^\d{4}-\d{2}-\d{2}$/.test(value),'Citation dates must use YYYY-MM-DD');
+ const date=new Date(value+'T00:00:00Z');invariant(Number.isFinite(date.valueOf())&&date.toISOString().slice(0,10)===value,'Invalid citation date');
+}
+function validateCitationMetadata(value) {
+ fields(value,['publisher','publishedOn','pinpoint','accessedOn']);
+ invariant(Object.keys(value).length>0,'Empty citation metadata');
+ if(value.publisher!==undefined){text(value.publisher,1000);invariant(value.publisher.length>0&&value.publisher.trim()===value.publisher,'Citation publisher is empty or non-canonical');}
+ if(value.pinpoint!==undefined){text(value.pinpoint,200);invariant(value.pinpoint.length>0&&value.pinpoint.trim()===value.pinpoint,'Citation pinpoint is empty or non-canonical');}
+ if(value.publishedOn!==undefined){text(value.publishedOn,10);validIsoDate(value.publishedOn);}
+ if(value.accessedOn!==undefined){text(value.accessedOn,10);validIsoDate(value.accessedOn);}
+}
+export function normalizeCitationMetadata(value) {
+ if(value===undefined||value===null)return null;
+ fields(value,['publisher','publishedOn','pinpoint','accessedOn']);const next={};
+ for(const key of ['publisher','publishedOn','pinpoint','accessedOn'])if(Object.hasOwn(value,key)){invariant(typeof value[key]==='string','Citation metadata values must be strings');if(value[key].trim())next[key]=value[key].trim();}
+ validateCitationMetadata(next);return freeze(next);
+}
 function validateInlines(inlines,refs,schemaVersion) {
  denseArray(inlines,10000);
  for(const run of inlines) {
@@ -55,8 +73,9 @@ function validateInlines(inlines,refs,schemaVersion) {
   } else if(['reference','footnote-reference'].includes(run.kind)) {
    fields(run,['kind','targetId','label'],['kind','targetId']);identifier(run.targetId);if(run.label!==undefined)text(run.label,1000);refs.push(run);
   } else {
-   fields(run,['kind','targetUrl','label','title'],['kind','targetUrl','label']);
+   fields(run,['kind','targetUrl','label','title','citationMetadata'],['kind','targetUrl','label']);
    invariant(normalizeExternalUrl(run.targetUrl)===run.targetUrl,'External URLs must use canonical HTTPS form');text(run.label,1000);invariant(run.label.length>0,'External inline label is required');if(run.title!==undefined)text(run.title,1000);
+   if(run.citationMetadata!==undefined){invariant(run.kind==='citation','Only citations may carry citation metadata');validateCitationMetadata(run.citationMetadata);}
   }
  }
 }
@@ -145,7 +164,7 @@ export function legalOutline(document) {
 }
 export function legalPlainText(document) {
  const doc=validateLegalDocument(document),labels=new Map(legalOutline(doc).map(x=>[x.id,x.label]));
- const inline=r=>r.kind==='text'?r.text:['link','citation'].includes(r.kind)?r.label+' <'+r.targetUrl+'>':r.label??labels.get(r.targetId)??'['+r.targetId+']';
+ const inline=r=>{if(r.kind==='text')return r.text;if(!['link','citation'].includes(r.kind))return r.label??labels.get(r.targetId)??'['+r.targetId+']';const metadata=r.citationMetadata?['publisher','publishedOn','pinpoint','accessedOn'].filter(key=>r.citationMetadata[key]!==undefined).map(key=>r.citationMetadata[key]).join('; '):'';return r.label+' <'+r.targetUrl+'>'+(metadata?' ['+metadata+']':'');};
  function render(node){if(node.inlines)return (node.term?node.term+'—':'')+node.inlines.map(inline).join('');return (node.title?(labels.get(node.id)??'EXHIBIT')+' '+node.title+'\n':'')+node.children.map(render).join(node.kind==='table-row'?'\t':'\n');}
  return doc.content.map(render).join('\n\n');
 }
