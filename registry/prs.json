@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 3,
+  "roadmapVersion": 4,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T03:11:21.380Z",
+  "observedAt": "2026-10-17T05:37:32.375Z",
   "units": [
     {
       "id": "DCE-001",
@@ -45,8 +45,11 @@
         "Session fixation, recovery replay, CSRF, cross-tenant API and membership-revocation integration tests against disposable Postgres."
       ],
       "specification": "docs/prs/DCE-002.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        4
+      ]
     },
     {
       "id": "DCE-003",
@@ -893,16 +896,31 @@
       "id": 4896768080,
       "number": 3,
       "title": "DCE-005: Add shared Quill legal editor foundation (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/3",
       "createdAt": "2026-10-17T03:10:53Z",
-      "updatedAt": "2026-10-17T03:10:53Z",
+      "updatedAt": "2026-10-17T03:13:59Z",
+      "mergedAt": "2026-10-17T03:13:59Z",
+      "closedAt": "2026-10-17T03:13:59Z",
+      "draft": false,
+      "headSha": "62f7ab6a85d389a4337178725fd95685b042055f",
+      "baseRef": "main",
+      "mergeCommitSha": "46ba3e4a6595ded771b6f708d103c32470a82262"
+    },
+    {
+      "id": 4897645062,
+      "number": 4,
+      "title": "DCE-002: Add persisted identity and organization access foundation (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/4",
+      "createdAt": "2026-10-17T05:37:14Z",
+      "updatedAt": "2026-10-17T05:37:14Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "deff3d8d15cbd2d8a0ad7417761780eae6b352c5",
+      "headSha": "a54b82951a3f4412ad6ff38076ff016021ec7199",
       "baseRef": "main",
-      "mergeCommitSha": "644086804c7736820532fd76cf5d11f93771190f"
+      "mergeCommitSha": "0e462480fdc5f642c1665c07191d29ad8a79a45e"
     }
   ]
 }

@@ -9,7 +9,18 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: dge_identity_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dge_identity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Verify runtime
-        run: docker run --rm -v "$PWD:/work" -w /work node:24.19.0-alpine sh -c 'npm ci --ignore-scripts && npm run check && npm run build'
+        run: docker run --rm --network host -e DGE_TEST_DATABASE_URL=postgresql://postgres:disposable-ci-only@127.0.0.1:5432/dge_identity_test -v "$PWD:/work" -w /work node:24.19.0-alpine sh -c 'npm ci --ignore-scripts --no-audit --no-fund && npm run check && npm run test:postgres && npm run build'

@@ -12,15 +12,20 @@
     "check": "node scripts/validate-pr-registry.mjs && node scripts/validate-security.mjs && npm test && npm run test:fuzz",
     "demo": "node demo/server.mjs",
     "build": "node scripts/build-editor.mjs",
-    "preview": "node scripts/serve-editor.mjs"
+    "preview": "node scripts/serve-editor.mjs",
+    "test:postgres": "node --test tests/identity-postgres.integration.mjs"
   },
   "exports": {
     ".": "./src/index.mjs",
     "./legal-structure": "./src/legal-structure.mjs",
     "./editor": "./editor/model.mjs",
-    "./draft-cache": "./editor/draft-cache.mjs"
+    "./draft-cache": "./editor/draft-cache.mjs",
+    "./identity": "./server/identity-store.mjs",
+    "./oidc": "./server/oidc-login.mjs"
   },
   "dependencies": {
+    "openid-client": "6.8.8",
+    "pg": "8.23.1",
     "prosemirror-commands": "1.7.2",
     "prosemirror-history": "1.5.1",
     "prosemirror-keymap": "1.2.3",
@@ -32,6 +37,7 @@
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "esbuild": "0.28.2",
     "jsdom": "30.1.3"
   }

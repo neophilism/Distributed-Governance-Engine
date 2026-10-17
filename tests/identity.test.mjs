@@ -1,0 +1,165 @@
+import {test,before,after,beforeEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes,generateKeyPairSync,sign,createHash,randomUUID} from 'node:crypto';
+import {PGlite} from '@electric-sql/pglite';
+import * as oidc from 'openid-client';
+import {createIdentityStore,applyIdentityMigrations,AccessError,sessionCookie} from '../server/identity-store.mjs';
+import {createOIDCLogin,discoverIdentityProvider} from '../server/oidc-login.mjs';
+
+let db,store,time;
+const sessionKey=randomBytes(32),stateKey=randomBytes(32),origin='https://quill.example';
+const transaction=callback=>db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE dge_identity_runtime');return callback(tx);});
+const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time});
+before(async()=>{db=await PGlite.create();assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:true});assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:false});});
+after(async()=>{await db?.close();});
+beforeEach(async()=>{await db.exec('TRUNCATE dge_identity.accounts,dge_identity.tenants,dge_identity.login_challenges CASCADE');time=Date.now();store=createIdentityStore(options());});
+const account=async(subject='owner',issuer='https://identity.example')=>({...await store.establishSession({issuer,subject}),origin});
+const denied=promise=>assert.rejects(promise,error=>error instanceof AccessError);
+const join=async(owner,tenantId,user,role='editor')=>{const {invitationToken}=await store.invite(owner,tenantId,user.accountId,role);await store.acceptInvitation(user,tenantId,invitationToken);};
+
+test('sessions survive a new service instance; provider subjects never link across issuers',async()=>{
+  const a=await account(),b=await account('owner','https://other.example'),again=await account();
+  assert.equal(a.accountId,again.accountId);assert.notEqual(a.accountId,b.accountId);assert.notEqual(a.sessionToken,again.sessionToken);
+  assert.deepEqual(await createIdentityStore(options()).account(a.sessionToken),{accountId:a.accountId});
+  const rows=(await db.query('SELECT * FROM dge_identity.sessions')).rows;
+  assert.equal(rows.length,3);assert.ok(rows.every(r=>r.token_digest.length===64));assert.ok(!JSON.stringify(rows).includes(a.sessionToken));assert.ok(!JSON.stringify(rows).includes(a.csrfToken));
+});
+test('ordinary database role cannot bypass organization row isolation',async()=>{
+  const owner=await account(),a=await store.createTenant(owner),b=await store.createTenant(owner);
+  await transaction(async tx=>{
+    const role=(await tx.query('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0];assert.deepEqual(role,{rolsuper:false,rolbypassrls:false});
+    assert.equal((await tx.query('SELECT id FROM dge_identity.tenants')).rows.length,0);
+    await tx.query("SELECT set_config('dge.tenant_id',$1,true)",[a.tenantId]);
+    assert.deepEqual((await tx.query('SELECT id FROM dge_identity.tenants')).rows.map(x=>x.id),[a.tenantId]);
+    assert.equal((await tx.query('SELECT * FROM dge_identity.memberships WHERE tenant_id=$1',[b.tenantId])).rows.length,0);
+    await assert.rejects(tx.query('INSERT INTO dge_identity.tenants(id,created_at) VALUES($1,$2)',[randomUUID(),new Date(time)]),/row-level security/);
+  });
+  // SET LOCAL context must not bleed into a later transaction.
+  await transaction(async tx=>assert.equal((await tx.query('SELECT id FROM dge_identity.tenants')).rows.length,0));
+});
+test('organization access rejects nonmembers and uses bounded member pages',async()=>{
+  const owner=await account(),other=await account('other'),viewer=await account('viewer'),{tenantId}=await store.createTenant(owner);
+  await denied(store.members(other,tenantId));await join(owner,tenantId,viewer,'viewer');
+  const first=await store.members(viewer,tenantId,{limit:1}),second=await store.members(viewer,tenantId,{limit:1,after:first.nextCursor});
+  assert.equal(first.items.length,1);assert.equal(second.items.length,1);assert.equal(second.nextCursor,null);assert.notEqual(first.items[0].accountId,second.items[0].accountId);
+  await denied(store.members(owner,tenantId,{limit:100000}));
+  await denied(store.invite(viewer,tenantId,other.accountId,'admin'));
+});
+test('state-changing methods require exact origin and the session-bound CSRF token',async()=>{
+  const a=await account(),b=await account('other');
+  for(const bad of [{...a,origin:'https://attacker.example'},{...a,origin:undefined},{...a,csrfToken:b.csrfToken},{...a,csrfToken:''}])await denied(store.createTenant(bad));
+  assert.equal((await db.query('SELECT id FROM dge_identity.tenants')).rows.length,0);
+  assert.ok(sessionCookie(a.sessionToken).includes('HttpOnly; Secure; SameSite=Lax'));
+  assert.ok(!sessionCookie(a.sessionToken).includes('Domain='));assert.throws(()=>sessionCookie('x; injection'));
+});
+test('invitation is one-use and bound to both intended account and organization',async()=>{
+  const owner=await account(),target=await account('target'),attacker=await account('attacker'),a=await store.createTenant(owner),b=await store.createTenant(owner);
+  const invite=await store.invite(owner,a.tenantId,target.accountId,'editor');
+  await denied(store.acceptInvitation(attacker,a.tenantId,invite.invitationToken));
+  await denied(store.acceptInvitation(target,b.tenantId,invite.invitationToken));
+  await store.acceptInvitation(target,a.tenantId,invite.invitationToken);
+  await denied(store.acceptInvitation(target,a.tenantId,invite.invitationToken));
+  assert.equal((await store.members(target,a.tenantId)).items.length,2);
+});
+test('removal takes effect on the next request and cancels older invitations',async()=>{
+  const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);await join(owner,tenantId,target);
+  const older=await store.invite(owner,tenantId,target.accountId,'editor');await store.changeMember(owner,tenantId,target.accountId,null);
+  await denied(store.members(target,tenantId));await denied(store.acceptInvitation(target,tenantId,older.invitationToken));
+  assert.ok(await store.account(target.sessionToken)); // Other organizations/account remain available.
+});
+test('last-owner guard and admin privilege limits preserve authority',async()=>{
+  const owner=await account(),admin=await account('admin'),editor=await account('editor'),{tenantId}=await store.createTenant(owner);
+  await join(owner,tenantId,admin,'admin');await join(owner,tenantId,editor);
+  await denied(store.changeMember(owner,tenantId,owner.accountId,null));
+  await denied(store.changeMember(admin,tenantId,owner.accountId,'viewer'));
+  await denied(store.changeMember(admin,tenantId,editor.accountId,'owner'));
+  await store.changeMember(owner,tenantId,editor.accountId,'owner');await store.changeMember(owner,tenantId,owner.accountId,'viewer');
+  const members=await store.members(editor,tenantId);assert.equal(members.items.filter(x=>x.role==='owner').length,1);
+  await denied(store.changeMember(owner,tenantId,admin.accountId,null));
+});
+test('ordinary logout, all-session revocation, suspension and expiry are enforced from stored state',async()=>{
+  const a=await account(),b=await account();await store.logout(a);await denied(store.account(a.sessionToken));assert.ok(await store.account(b.sessionToken));
+  const c=await account();await store.logoutAll(b);await denied(store.account(b.sessionToken));await denied(store.account(c.sessionToken));
+  const d=await account();time+=28800000;await denied(store.account(d.sessionToken));
+  const e=await account();await db.query("UPDATE dge_identity.accounts SET status='suspended' WHERE id=$1",[e.accountId]);
+  await denied(store.account(e.sessionToken));await denied(account());
+});
+test('sensitive membership changes require login within five minutes',async()=>{
+  const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;
+  assert.equal((await store.members(owner,tenantId)).items.length,1);await denied(store.invite(owner,tenantId,target.accountId,'viewer'));
+  const fresh=await account();await store.invite(fresh,tenantId,target.accountId,'viewer');
+});
+test('invitation expires without reauthorizing an account through a fresh login',async()=>{
+  const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner),invite=await store.invite(owner,tenantId,target.accountId,'viewer');
+  time+=86400001;const fresh=await account('target');await denied(store.acceptInvitation(fresh,tenantId,invite.invitationToken));
+});
+test('transaction rollback leaves no tenant, membership or audit event after a failed write',async()=>{
+  const owner=await account();
+  const broken=createIdentityStore({...options(),transaction:fn=>transaction(async tx=>fn({query:(sql,args)=>sql.startsWith('INSERT INTO dge_identity.events')?Promise.reject(Error('storage failed')):tx.query(sql,args)}))});
+  await assert.rejects(broken.createTenant(owner),/storage failed/);
+  for(const table of ['tenants','memberships','events'])assert.equal((await db.query('SELECT count(*)::int AS n FROM dge_identity.'+table)).rows[0].n,0);
+});
+test('runtime role cannot rewrite or delete membership audit events',async()=>{
+  const owner=await account(),{tenantId}=await store.createTenant(owner);
+  await assert.rejects(transaction(async tx=>{await tx.query("SELECT set_config('dge.tenant_id',$1,true)",[tenantId]);await tx.query('DELETE FROM dge_identity.events');}),/permission denied/);
+});
+test('login challenges are encrypted, browser-bound, expiring and consumed exactly once',async()=>{
+  const state=randomBytes(32).toString('base64url'),browser=randomBytes(32).toString('base64url'),secret={verifier:'fixture-pkce-secret',nonce:'fixture-nonce'};
+  await store.putLogin(state,browser,secret);
+  const snapshot=JSON.stringify((await db.query('SELECT * FROM dge_identity.login_challenges')).rows);
+  for(const value of [state,browser,secret.verifier,secret.nonce])assert.ok(!snapshot.includes(value));
+  await denied(store.consumeLogin(state,randomBytes(32).toString('base64url')));
+  assert.deepEqual(await store.consumeLogin(state,browser),secret);await denied(store.consumeLogin(state,browser));
+  await store.putLogin(state,browser,secret);time+=600000;await denied(store.consumeLogin(state,browser));assert.equal(await store.pruneExpiredLogins(),1);
+});
+test('tampered login state does not decrypt or create a session',async()=>{
+  const state=randomBytes(32).toString('base64url'),browser=randomBytes(32).toString('base64url');await store.putLogin(state,browser,{verifier:'never-log'});
+  await db.query("UPDATE dge_identity.login_challenges SET sealed_state=repeat('A',100)");
+  await assert.rejects(store.consumeLogin(state,browser));assert.equal((await db.query('SELECT count(*)::int AS n FROM dge_identity.sessions')).rows[0].n,0);
+});
+test('configuration fails closed for insecure origins, shared keys and excessive session duration',async()=>{
+  for(const change of [{origin:'http://quill.example'},{origin:origin+'/'},{stateKey:sessionKey},{sessionKey:Buffer.alloc(0)},{sessionSeconds:999999}])assert.throws(()=>createIdentityStore({...options(),...change}));
+  await assert.rejects(discoverIdentityProvider({issuer:'http://identity.example',clientId:'x',clientSecret:'fixture'}),/HTTPS/);
+});
+test('migration runner rejects edited history rather than silently accepting a different schema',async()=>{
+  await db.query("UPDATE dge_identity.migrations SET checksum=repeat('0',64) WHERE version=1");
+  try{await assert.rejects(applyIdentityMigrations(fn=>db.transaction(fn)),/checksum changed/);}
+  finally{const {createHash}=await import('node:crypto');const {identityMigration}=await import('../server/identity-store.mjs');await db.query('UPDATE dge_identity.migrations SET checksum=$1 WHERE version=1',[createHash('sha256').update(await identityMigration()).digest('hex')]);}
+});
+
+// A synthetic OIDC provider exercises the real openid-client validation code.
+// Keys and tokens below are created for this test process; no external account/provider is contacted.
+const keys=generateKeyPairSync('rsa',{modulusLength:2048});
+function provider(scenario={}) {
+  let authorization;
+  const issuer='https://provider.example',clientId='engine-test';
+  const config=new oidc.Configuration({issuer,authorization_endpoint:issuer+'/authorize',token_endpoint:issuer+'/token',jwks_uri:issuer+'/jwks',id_token_signing_alg_values_supported:['RS256'],response_types_supported:['code']},clientId,'fixture-client-secret');
+  config[oidc.customFetch]=async(url,init)=>{
+    if(String(url)===issuer+'/jwks')return Response.json({keys:[{...keys.publicKey.export({format:'jwk'}),kid:'fixture-key',alg:'RS256',use:'sig'}]});
+    assert.equal(String(url),issuer+'/token');const form=new URLSearchParams(init.body);
+    assert.equal(form.get('code'),'test-code');assert.equal(createHash('sha256').update(form.get('code_verifier')).digest('base64url'),authorization.searchParams.get('code_challenge'));
+    const now=Math.floor(Date.now()/1000),payload={iss:issuer,sub:'verified-user',aud:clientId,iat:now,exp:now+300,auth_time:now,nonce:authorization.searchParams.get('nonce'),...scenario.claims};
+    const unsigned=Buffer.from(JSON.stringify({alg:'RS256',kid:'fixture-key'})).toString('base64url')+'.'+Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature=sign('RSA-SHA256',Buffer.from(unsigned),keys.privateKey).toString('base64url');
+    return Response.json({access_token:'unused-fixture-access-token',token_type:'Bearer',expires_in:300,id_token:unsigned+'.'+(scenario.badSignature?'invalid-signature':signature)});
+  };
+  const login=createOIDCLogin({store,configuration:config,redirectUri:origin+'/auth/callback'});
+  return {login,async start(){const result=await login.start();authorization=new URL(result.authorizationUrl);return {state:authorization.searchParams.get('state'),browser:result.cookie.match(/^__Host-dge_login=([^;]+)/)[1],authorization};}};
+}
+test('OIDC code flow validates signature, issuer, audience, nonce, state and PKCE before session creation',async()=>{
+  const {login,start}=provider(),pending=await start();assert.equal(pending.authorization.searchParams.get('code_challenge_method'),'S256');
+  const callback=origin+'/auth/callback?code=test-code&state='+pending.state;
+  await denied(login.complete(callback,randomBytes(32).toString('base64url')));
+  const session=await login.complete(callback,pending.browser);assert.ok(session.cookie.startsWith('__Host-dge_session='));assert.ok(!Object.hasOwn(session,'access_token'));
+  assert.ok(await store.account(session.sessionToken));await denied(login.complete(callback,pending.browser));
+});
+for(const [name,scenario] of Object.entries({nonce:{claims:{nonce:'wrong'}},issuer:{claims:{iss:'https://impostor.example'}},audience:{claims:{aud:'another-app'}},expiry:{claims:{exp:1}},oldLogin:{claims:{auth_time:1}},signature:{badSignature:true}})){
+  test('OIDC rejects invalid '+name+' without issuing a session',async()=>{
+    const {login,start}=provider(scenario),pending=await start();await assert.rejects(login.complete(origin+'/auth/callback?code=test-code&state='+pending.state,pending.browser));
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM dge_identity.sessions')).rows[0].n,0);
+  });
+}
+test('OIDC callback cannot change configured origin/path or repeat state parameters',async()=>{
+  const {login,start}=provider(),p=await start();
+  for(const callback of ['https://attacker.example/auth/callback?state='+p.state,origin+'/elsewhere?state='+p.state,origin+'/auth/callback?state='+p.state+'&state='+p.state])await denied(login.complete(callback,p.browser));
+});
