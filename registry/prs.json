@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 12,
+  "roadmapVersion": 13,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T13:28:28.990Z",
+  "observedAt": "2026-10-17T13:29:35.002Z",
   "units": [
     {
       "id": "DCE-001",
@@ -339,8 +339,11 @@
         "Cycle detection, graph pagination, link sanitization, quote evidence integrity, duplicate merge and deleted-claim moderation tests."
       ],
       "specification": "docs/prs/DCE-015.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        10
+      ]
     },
     {
       "id": "DCE-016",
@@ -361,8 +364,11 @@
         "Vote-ring abuse simulations, self-vote rejection, duplicate retries, reputation rollback, deterministic sorting and cold-start exposure tests."
       ],
       "specification": "docs/prs/DCE-016.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        10
+      ]
     },
     {
       "id": "DCE-017",
@@ -1006,6 +1012,21 @@
       "headSha": "dc631f71811e5ff7d93501ef156028032c7f7067",
       "baseRef": "main",
       "mergeCommitSha": "ca0761f9440daba7221a001f43bc19fe10f478a0"
+    },
+    {
+      "id": 4900448309,
+      "number": 10,
+      "title": "DCE-015: Add structured debate and independent point voting (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/10",
+      "createdAt": "2026-10-17T13:29:05Z",
+      "updatedAt": "2026-10-17T13:29:05Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false,
+      "headSha": "de424191e8d8a414268d078aa1fc029cc1af5b4c",
+      "baseRef": "main",
+      "mergeCommitSha": "447456ca34b6129ec79c1e8fff60170036b6b628"
     }
   ]
 }
