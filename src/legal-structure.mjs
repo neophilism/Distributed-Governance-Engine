@@ -1,8 +1,9 @@
 import {canonicalize,identifier,invariant} from './integrity-values.mjs';
 import {legalLabel,FEDERAL_HIERARCHY} from './numbering.mjs';
 
-export const LEGAL_SCHEMA_VERSION=1;
+export const LEGAL_SCHEMA_VERSION=2;
 export const LEGAL_LIMITS=Object.freeze({nodes:10000,depth:16,bytes:3000000,text:1000000});
+const SUPPORTED_SCHEMA_VERSIONS=new Set([1,2]);
 const INLINE_MARKS=new Set(['bold','italic','underline','strike']);
 const CHILDREN={
  section:new Set(['section','paragraph','list','table','definition','exhibit']),
@@ -36,24 +37,34 @@ function denseArray(value,max) {
  invariant(Object.getOwnPropertySymbols(value).length===0&&Object.keys(value).every(key=>Object.hasOwn(Object.getOwnPropertyDescriptor(value,key),'value')),'Unsafe array entries');
 }
 function freeze(value) {if(value&&typeof value==='object'){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;}
-function validateInlines(inlines,refs) {
+export function normalizeExternalUrl(value) {
+ text(value,2048);let url;
+ try{url=new URL(value);}catch{invariant(false,'Invalid external URL');}
+ invariant(url.protocol==='https:'&&url.hostname&&url.username===''&&url.password==='','External URLs must use HTTPS without user information');
+ return url.href;
+}
+function validateInlines(inlines,refs,schemaVersion) {
  denseArray(inlines,10000);
  for(const run of inlines) {
   safeRecord(run);
-  invariant(run&&['text','reference','footnote-reference'].includes(run.kind),'Unknown inline kind');
+  const allowed=schemaVersion>=2?['text','reference','footnote-reference','link','citation']:['text','reference','footnote-reference'];
+  invariant(run&&allowed.includes(run.kind),'Unknown inline kind');
   if(run.kind==='text') {
    fields(run,['kind','text','marks'],['kind','text']);text(run.text);
    if(run.marks!==undefined){denseArray(run.marks,4);invariant(run.marks.every(m=>INLINE_MARKS.has(m))&&new Set(run.marks).size===run.marks.length,'Invalid text marks');}
-  } else {
+  } else if(['reference','footnote-reference'].includes(run.kind)) {
    fields(run,['kind','targetId','label'],['kind','targetId']);identifier(run.targetId);if(run.label!==undefined)text(run.label,1000);refs.push(run);
+  } else {
+   fields(run,['kind','targetUrl','label','title'],['kind','targetUrl','label']);
+   invariant(normalizeExternalUrl(run.targetUrl)===run.targetUrl,'External URLs must use canonical HTTPS form');text(run.label,1000);invariant(run.label.length>0,'External inline label is required');if(run.title!==undefined)text(run.title,1000);
   }
  }
 }
 
 /** Validate structure independently from presentation and return frozen, detached data. */
 export function validateLegalDocument(input,{forFinalization=false}={}) {
- fields(input,['schemaVersion','id','tenantId','mode','lifecycle','revision','metadata','content','provenance'],['schemaVersion','id','tenantId','mode','lifecycle','revision','metadata','content']);
- invariant(input.schemaVersion===LEGAL_SCHEMA_VERSION,'Unsupported legal schema version');identifier(input.id);identifier(input.tenantId);
+ fields(input,['schemaVersion','id','tenantId','mode','lifecycle','revision','metadata','content','provenance','schemaMigration'],['schemaVersion','id','tenantId','mode','lifecycle','revision','metadata','content']);
+ invariant(SUPPORTED_SCHEMA_VERSIONS.has(input.schemaVersion),'Unsupported legal schema version');identifier(input.id);identifier(input.tenantId);
  invariant(['collaboration','public-input'].includes(input.mode),'Invalid legal document mode');
  invariant(['draft','published','adopted','signed'].includes(input.lifecycle),'Invalid document lifecycle');
  invariant(Number.isSafeInteger(input.revision)&&input.revision>=0,'Invalid legal revision');
@@ -61,6 +72,7 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
  invariant(typeof input.metadata.locale==='string'&&/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(input.metadata.locale),'Invalid document locale');
  invariant(['us-federal-v1','decimal-v1'].includes(input.metadata.numberingProfile),'Unsupported numbering profile');
  if(input.provenance!==undefined){fields(input.provenance,['fromSchema','sourceDigest'],['fromSchema','sourceDigest']);invariant(input.provenance.fromSchema==='foundation-blocks-v0'&&/^[a-f0-9]{64}$/.test(input.provenance.sourceDigest),'Invalid migration provenance');}
+ if(input.schemaMigration!==undefined){fields(input.schemaMigration,['fromVersion','toVersion','sourceDigest'],['fromVersion','toVersion','sourceDigest']);invariant(input.schemaVersion===2&&input.schemaMigration.fromVersion===1&&input.schemaMigration.toVersion===2&&/^[a-f0-9]{64}$/.test(input.schemaMigration.sourceDigest),'Invalid schema migration evidence');}
  const ids=new Map([[input.id,{kind:'document'}]]),refs=[];
  let count=0;
  function visit(node,depth,sectionDepth=0) {
@@ -72,7 +84,7 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
   if(['paragraph','footnote','definition'].includes(node.kind)) {
    const allowed=['kind','id','inlines'];if(node.kind==='definition')allowed.push('term');
    fields(node,allowed,['kind','id','inlines',...(node.kind==='definition'?['term']:[])]);
-   if(node.kind==='definition')text(node.term,1000);validateInlines(node.inlines,refs);
+   if(node.kind==='definition')text(node.term,1000);validateInlines(node.inlines,refs,input.schemaVersion);
   } else {
    invariant(Object.hasOwn(CHILDREN,node.kind),'Unsupported legal node kind');
    const allowed=['kind','id','children'];if(node.kind==='section'||node.kind==='exhibit')allowed.push('title');if(node.kind==='list')allowed.push('style');
@@ -99,7 +111,7 @@ export function documentIssues(document) {
  return references.filter(r=>!ids.has(r.targetId)).map(r=>({code:'UNRESOLVED_REFERENCE',sourceId:r.sourceId,targetId:r.targetId}));
 }
 export function createLegalDocument({id,tenantId,title,locale='en-US',mode='collaboration'}) {
- return validateLegalDocument({schemaVersion:1,id,tenantId,mode,lifecycle:'draft',revision:0,metadata:{title,locale,numberingProfile:'us-federal-v1'},content:[{kind:'paragraph',id:id+':p1',inlines:[{kind:'text',text:''}]}]});
+ return validateLegalDocument({schemaVersion:LEGAL_SCHEMA_VERSION,id,tenantId,mode,lifecycle:'draft',revision:0,metadata:{title,locale,numberingProfile:'us-federal-v1'},content:[{kind:'paragraph',id:id+':p1',inlines:[{kind:'text',text:''}]}]});
 }
 
 function requireDraft(document) {invariant(document.lifecycle==='draft'&&document.mode==='collaboration','Only a collaboration draft may be edited directly');}
@@ -133,7 +145,7 @@ export function legalOutline(document) {
 }
 export function legalPlainText(document) {
  const doc=validateLegalDocument(document),labels=new Map(legalOutline(doc).map(x=>[x.id,x.label]));
- const inline=r=>r.kind==='text'?r.text:r.label??labels.get(r.targetId)??'['+r.targetId+']';
+ const inline=r=>r.kind==='text'?r.text:['link','citation'].includes(r.kind)?r.label+' <'+r.targetUrl+'>':r.label??labels.get(r.targetId)??'['+r.targetId+']';
  function render(node){if(node.inlines)return (node.term?node.term+'—':'')+node.inlines.map(inline).join('');return (node.title?(labels.get(node.id)??'EXHIBIT')+' '+node.title+'\n':'')+node.children.map(render).join(node.kind==='table-row'?'\t':'\n');}
  return doc.content.map(render).join('\n\n');
 }
