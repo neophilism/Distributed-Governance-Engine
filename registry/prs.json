@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 2,
+  "roadmapVersion": 3,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T02:57:55.246Z",
+  "observedAt": "2026-10-17T03:11:21.380Z",
   "units": [
     {
       "id": "DCE-001",
@@ -111,7 +111,10 @@
       ],
       "specification": "docs/prs/DCE-005.md",
       "implementationStatus": "partial",
-      "operationalAcceptance": "unverified"
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        3
+      ]
     },
     {
       "id": "DCE-006",
@@ -860,25 +863,46 @@
       "id": 4896649377,
       "number": 1,
       "title": "DCE-001: Establish the shared governance engine and Quill product foundation",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/1",
       "createdAt": "2026-10-17T02:49:38Z",
-      "updatedAt": "2026-10-17T02:49:38Z",
-      "mergedAt": null,
-      "closedAt": null,
-      "draft": false
+      "updatedAt": "2026-10-17T02:53:14Z",
+      "mergedAt": "2026-10-17T02:53:14Z",
+      "closedAt": "2026-10-17T02:53:14Z",
+      "draft": false,
+      "headSha": "c8a2849aba9a59cca7a5215ad86f9648ddaa0341",
+      "baseRef": "main",
+      "mergeCommitSha": "331153a4934016c5664080c00aaf69e52c18b926"
     },
     {
       "id": 4896691962,
       "number": 2,
       "title": "DCE-004: Add stable legal structure, references and immutable editions",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/2",
       "createdAt": "2026-10-17T02:57:19Z",
-      "updatedAt": "2026-10-17T02:57:19Z",
+      "updatedAt": "2026-10-17T03:03:17Z",
+      "mergedAt": "2026-10-17T03:03:16Z",
+      "closedAt": "2026-10-17T03:03:16Z",
+      "draft": false,
+      "headSha": "a8ad36f3e1682f050fb24213cdf783e1ac07ad0e",
+      "baseRef": "main",
+      "mergeCommitSha": "e408e8cc98b21bf7ed5c69bdca6efcb43753def7"
+    },
+    {
+      "id": 4896768080,
+      "number": 3,
+      "title": "DCE-005: Add shared Quill legal editor foundation (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/3",
+      "createdAt": "2026-10-17T03:10:53Z",
+      "updatedAt": "2026-10-17T03:10:53Z",
       "mergedAt": null,
       "closedAt": null,
-      "draft": false
+      "draft": false,
+      "headSha": "deff3d8d15cbd2d8a0ad7417761780eae6b352c5",
+      "baseRef": "main",
+      "mergeCommitSha": "644086804c7736820532fd76cf5d11f93771190f"
     }
   ]
 }
