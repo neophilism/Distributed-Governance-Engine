@@ -4,7 +4,7 @@
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T02:51:57.629Z",
+  "observedAt": "2026-10-17T02:57:55.246Z",
   "units": [
     {
       "id": "DCE-001",
@@ -73,7 +73,9 @@
       "id": "DCE-004",
       "title": "Semantic legal document schema",
       "origin": "original",
-      "prs": [],
+      "prs": [
+        2
+      ],
       "dependsOn": [
         "DCE-001"
       ],
@@ -87,7 +89,7 @@
         "Golden document fixtures, malformed/deep tree fuzzing, migration rollback and hash-domain separation tests."
       ],
       "specification": "docs/prs/DCE-004.md",
-      "implementationStatus": "planned",
+      "implementationStatus": "implemented",
       "operationalAcceptance": "unverified"
     },
     {
@@ -862,6 +864,18 @@
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/1",
       "createdAt": "2026-10-17T02:49:38Z",
       "updatedAt": "2026-10-17T02:49:38Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false
+    },
+    {
+      "id": 4896691962,
+      "number": 2,
+      "title": "DCE-004: Add stable legal structure, references and immutable editions",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/2",
+      "createdAt": "2026-10-17T02:57:19Z",
+      "updatedAt": "2026-10-17T02:57:19Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false

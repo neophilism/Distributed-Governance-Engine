@@ -1,0 +1,20 @@
+{
+  "kind": "local-domain-evidence",
+  "completedAt": "2026-10-17T02:56:58.240324+00:00",
+  "command": "npm run check",
+  "exitCode": 0,
+  "tests": 48,
+  "propertyScenarios": 2000,
+  "scope": [
+    "semantic legal tree",
+    "stable IDs and references",
+    "draft/final/public-input transitions",
+    "non-destructive legacy migration",
+    "bounded malformed trees",
+    "portable structure validation"
+  ],
+  "limits": [
+    "pure domain model; production transitions still require authorization and atomic persistence",
+    "no UI or production encryption claim"
+  ]
+}
