@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "status": "design-only-not-deployed",
+  "flows": [
+    {
+      "id": "private-content",
+      "assets": [
+        "document",
+        "proposal",
+        "argument",
+        "signature ink",
+        "attachments"
+      ],
+      "plaintextAt": [
+        "authorized participant devices"
+      ],
+      "services": "ciphertext only; not implemented",
+      "onChain": false
+    },
+    {
+      "id": "public-content",
+      "assets": [
+        "published editions",
+        "published proposals/arguments",
+        "consented names"
+      ],
+      "plaintextAt": [
+        "public clients",
+        "intentional publication service"
+      ],
+      "services": "explicit public disclosure",
+      "onChain": "hash/Merkle commitment only"
+    },
+    {
+      "id": "governance-metadata",
+      "assets": [
+        "eligibility",
+        "ballot receipts",
+        "tallies",
+        "share weights",
+        "proxy rights"
+      ],
+      "plaintextAt": [
+        "scoped governance authority as declared",
+        "eligible client"
+      ],
+      "services": "restricted and minimized; vote-privacy profile explicit",
+      "onChain": false
+    },
+    {
+      "id": "identity-payment",
+      "assets": [
+        "account contact",
+        "official verification",
+        "payment customer references"
+      ],
+      "plaintextAt": [
+        "scoped identity or billing services"
+      ],
+      "services": "minimized; no card data in app",
+      "onChain": false
+    },
+    {
+      "id": "operations",
+      "assets": [
+        "metrics",
+        "logs",
+        "backups",
+        "signer references"
+      ],
+      "plaintextAt": [
+        "authorized operators for non-content metadata"
+      ],
+      "services": "no private text, ink, secrets or application keys",
+      "onChain": false
+    }
+  ]
+}

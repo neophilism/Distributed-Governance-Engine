@@ -1,0 +1,19 @@
+{
+  "repository": "neophilism/Distributed-Governance-Engine",
+  "remoteRepositoryCreated": true,
+  "remoteRepositoryId": "1422876391",
+  "engineRoom": {
+    "state": "not-registered",
+    "acknowledgment": null
+  },
+  "boardroom": {
+    "state": "not-registered",
+    "acknowledgment": null
+  },
+  "deployment": {
+    "state": "not-deployed",
+    "url": null
+  },
+  "foundationUnitAccepted": false,
+  "githubSourcePublication": "foundation PR in preparation"
+}
