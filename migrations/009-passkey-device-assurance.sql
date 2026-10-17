@@ -58,3 +58,4 @@ ALTER TABLE dge_identity.account_security_events
   CHECK(kind IN ('recovery-codes-issued','recovery-code-redeemed','passkey-enrolled','passkey-authenticated','device-authorized','device-revoked'));
 
 GRANT SELECT,INSERT,UPDATE ON dge_identity.passkey_credentials,dge_identity.passkey_challenges,dge_identity.authorized_devices TO dge_identity_runtime;
+GRANT DELETE ON dge_identity.passkey_challenges TO dge_identity_runtime;
