@@ -53,7 +53,7 @@ function fromNode(node) {
  const kind=kinds[node.type.name]??node.type.name,attributes={...node.attrs};if(attributes.label===null)delete attributes.label;if(attributes.title===null)delete attributes.title;
  delete attributes.numberLabel;
  const base={kind,...attributes};
- if(['reference','footnote-reference'].includes(kind))return base;
+ if(['reference','footnote-reference','link','citation'].includes(kind))return base;
  const children=[];node.forEach(child=>children.push(fromNode(child)));
  return {...base,...(['paragraph','definition','footnote'].includes(kind)?{inlines:children}:{children})};
 }
