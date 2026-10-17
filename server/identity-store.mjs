@@ -11,7 +11,7 @@ const isToken=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value);
 const role=value=>['owner','admin','editor','participant','viewer'].includes(value);
 const date=value=>new Date(value).getTime();
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
@@ -65,15 +65,16 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   const digest=(purpose,value)=>createHmac('sha256',sessionKey).update(purpose+'\0'+value).digest('hex');
   const now=()=>{const n=clock();if(!Number.isSafeInteger(n)||n<0)throw Error('Invalid server clock');return new Date(n);};
   const checkWrite=credentials=>deny(credentials?.origin===origin&&isToken(credentials.csrfToken));
-  async function session(db,credentials,write=false,recent=false) {
+  async function session(db,credentials,write=false,recent=false,allowRecoveryWrite=false) {
     deny(isToken(credentials?.sessionToken),'AUTHENTICATION_REQUIRED');
     if(write)checkWrite(credentials);
-    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at,s.expires_at FROM dge_identity.sessions s
+    const result=await db.query(`SELECT a.id,a.auth_epoch,s.csrf_digest,s.created_at,s.authenticated_at,s.expires_at,s.authentication_method FROM dge_identity.sessions s
       JOIN dge_identity.accounts a ON a.id=s.account_id WHERE s.token_digest=$1 AND s.revoked_at IS NULL
       AND s.expires_at>$2 AND s.created_at<=$2 AND s.authenticated_at IS NOT NULL
       AND a.status='active' AND s.auth_epoch=a.auth_epoch FOR SHARE OF a,s`,[digest('session',credentials.sessionToken),now()]);
     const row=result.rows[0];deny(row,'AUTHENTICATION_REQUIRED');
     if(write)deny(timingSafeEqual(Buffer.from(row.csrf_digest),Buffer.from(digest('csrf',credentials.csrfToken))));
+    if(row.authentication_method!=='oidc'&&(recent||(write&&!allowRecoveryWrite)))deny(false,'RECOVERY_SESSION_RESTRICTED');
     if(recent)deny(date(row.authenticated_at)>now().getTime()-300000,'REAUTHENTICATION_REQUIRED');
     return row;
   }
@@ -81,6 +82,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   const event=(db,tenantId,actorId,subjectId,kind)=>db.query('INSERT INTO dge_identity.events(id,tenant_id,actor_id,subject_id,kind,occurred_at) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),tenantId,actorId,subjectId,kind,now()]);
   async function tenantContext(db,credentials,tenantId,write=false,recent=write) {
     const actor=await session(db,credentials,write,recent);
+    deny(actor.authentication_method==='oidc','RECOVERY_SESSION_RESTRICTED');
     await scope(db,tenantId);
     const tenant=await db.query(`SELECT id FROM dge_identity.tenants WHERE id=$1 FOR ${write?'UPDATE':'SHARE'}`,[tenantId]);
     deny(tenant.rows.length);
@@ -110,7 +112,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
     account:sessionToken=>transaction(async db=>({accountId:(await session(db,{sessionToken})).id})),
     sessionInfo:sessionToken=>transaction(async db=>{
       const actor=await session(db,{sessionToken});
-      return {accountId:actor.id,expiresAt:new Date(actor.expires_at).toISOString(),authenticatedAt:new Date(actor.authenticated_at).toISOString()};
+      return {accountId:actor.id,expiresAt:new Date(actor.expires_at).toISOString(),authenticatedAt:new Date(actor.authenticated_at).toISOString(),authenticationMethod:actor.authentication_method,recoveryRestricted:actor.authentication_method==='recovery'};
     }),
     organizations:(credentials,{after=null,limit=100}={})=>transaction(async db=>{
       deny((after===null||uuid(after))&&Number.isSafeInteger(limit)&&limit>=1&&limit<=200);
@@ -118,6 +120,32 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       await db.query("SELECT set_config('dge.account_id',$1,true)",[actor.id]);
       const rows=(await db.query('SELECT tenant_id AS "tenantId",role FROM dge_identity.memberships WHERE account_id=$1 AND active=true AND ($2::uuid IS NULL OR tenant_id>$2::uuid) ORDER BY tenant_id LIMIT $3',[actor.id,after,limit+1])).rows;
       return {items:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].tenantId:null};
+    }),
+    issueRecoveryCodes:credentials=>transaction(async db=>{
+      const actor=await session(db,credentials,true,true),createdAt=now(),expiresAt=new Date(createdAt.getTime()+30*86400000);
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['recovery-codes:'+actor.id]);
+      await db.query('UPDATE dge_identity.recovery_codes SET revoked_at=$2 WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[actor.id,createdAt]);
+      const recoveryCodes=[];
+      for(let index=0;index<8;index++){
+        const recoveryCode=token();recoveryCodes.push(recoveryCode);
+        await db.query('INSERT INTO dge_identity.recovery_codes(id,account_id,token_digest,created_at,expires_at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),actor.id,digest('recovery',recoveryCode),createdAt,expiresAt]);
+      }
+      await db.query("INSERT INTO dge_identity.account_security_events(id,account_id,kind,occurred_at) VALUES($1,$2,'recovery-codes-issued',$3)",[randomUUID(),actor.id,createdAt]);
+      return {accountId:actor.id,recoveryCodes,expiresAt:expiresAt.toISOString()};
+    }),
+    recoverAccount:(accountId,recoveryCode)=>transaction(async db=>{
+      deny(uuid(accountId)&&isToken(recoveryCode));const redeemedAt=now();
+      const code=(await db.query(`SELECT id FROM dge_identity.recovery_codes WHERE account_id=$1 AND token_digest=$2
+        AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>$3 FOR UPDATE`,[accountId,digest('recovery',recoveryCode),redeemedAt])).rows[0];
+      deny(code);
+      await db.query('UPDATE dge_identity.recovery_codes SET consumed_at=$2 WHERE id=$1',[code.id,redeemedAt]);
+      const account=(await db.query("UPDATE dge_identity.accounts SET auth_epoch=auth_epoch+1 WHERE id=$1 AND status='active' RETURNING auth_epoch",[accountId])).rows[0];deny(account);
+      await db.query('UPDATE dge_identity.sessions SET revoked_at=$2 WHERE account_id=$1 AND revoked_at IS NULL',[accountId,redeemedAt]);
+      const sessionToken=token(),csrfToken=token(),expiresAt=new Date(redeemedAt.getTime()+900000);
+      await db.query(`INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at,authenticated_at,authentication_method)
+        VALUES($1,$2,$3,$4,$5,$6,$5,'recovery')`,[digest('session',sessionToken),accountId,account.auth_epoch,digest('csrf',csrfToken),redeemedAt,expiresAt]);
+      await db.query("INSERT INTO dge_identity.account_security_events(id,account_id,kind,occurred_at) VALUES($1,$2,'recovery-code-redeemed',$3)",[randomUUID(),accountId,redeemedAt]);
+      return {accountId,sessionToken,csrfToken,expiresAt:expiresAt.toISOString(),authenticationMethod:'recovery',recoveryRestricted:true};
     }),
     // Trusted server extension boundary: authorization and the operation share one transaction.
     withTenant:(credentials,tenantId,{write=false,recent=false,roles=['owner','admin','editor','participant','viewer']}={},operation)=>transaction(async db=>{
@@ -191,7 +219,7 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       await event(db,tenantId,actor.id,accountId,nextRole===null?'removed':'role-changed');return {changed:true};
     }),
     logout:credentials=>transaction(async db=>{
-      await session(db,credentials,true);
+      await session(db,credentials,true,false,true);
       await db.query('UPDATE dge_identity.sessions SET revoked_at=$2 WHERE token_digest=$1',[digest('session',credentials.sessionToken),now()]);return {revoked:true};
     }),
     logoutAll:credentials=>transaction(async db=>{

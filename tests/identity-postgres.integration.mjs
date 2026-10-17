@@ -50,6 +50,24 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     const members=await store.members(remainingOwner,tenantId);assert.equal(members.items.some(x=>x.accountId===c.accountId),results[0].status==='fulfilled');
     const record=(await owner.query('SELECT consumed_at,revoked_at FROM dge_identity.invitations WHERE id=$1',[pending.invitationId])).rows[0];assert.notEqual(Boolean(record.consumed_at),Boolean(record.revoked_at));
   });
+  await t.test('a recovery code creates one restricted session under concurrent redemption',async()=>{
+    const recoveryUser=await user(),codes=await store.issueRecoveryCodes(recoveryUser);
+    const results=await Promise.allSettled([
+      store.recoverAccount(recoveryUser.accountId,codes.recoveryCodes[0]),
+      store.recoverAccount(recoveryUser.accountId,codes.recoveryCodes[0]),
+    ]);
+    assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+    assert.ok(results.find(x=>x.status==='rejected').reason instanceof AccessError);
+    const recovered=results.find(x=>x.status==='fulfilled').value;
+    assert.equal((await store.sessionInfo(recovered.sessionToken)).recoveryRestricted,true);
+    await assert.rejects(store.createTenant({...recovered,origin:'https://quill.example'}),AccessError);
+    await assert.rejects(store.withTenant({...recovered,origin:'https://quill.example'},tenantId,{},async()=>true),AccessError);
+    const rotationUser=await user();
+    await Promise.all([store.issueRecoveryCodes(rotationUser),store.issueRecoveryCodes(rotationUser)]);
+    const active=(await owner.query('SELECT count(*)::int AS n FROM dge_identity.recovery_codes WHERE account_id=$1 AND consumed_at IS NULL AND revoked_at IS NULL',[rotationUser.accountId])).rows[0].n;
+    assert.equal(active,8);
+    await store.logout({...recovered,origin:'https://quill.example'});
+  });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
     const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
     const document=createLegalDocument({id:randomUUID(),tenantId,title:'Parallel document'});

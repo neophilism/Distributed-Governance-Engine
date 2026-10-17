@@ -2,6 +2,12 @@
 
 This server library adds OpenID Connect (OIDC) login, database-backed sessions, organization roles and invitations. OIDC is the standard protocol for authentication through an existing identity provider. No cloud resource, provider account, mail service or paid subscription is created. HTTP routes, a shared account/workspace UI and a direct-TLS application server are now implemented. They have not been deployed with a real provider. See ACCOUNT_HTTP.md for setup and route boundaries.
 
+## Restricted recovery sessions
+
+An account can create eight single-use recovery codes only from a recent OIDC-authenticated session. Only keyed digests are stored, issuing a replacement set revokes every unused prior code, and codes expire after 30 days. Redeeming a code atomically consumes it, increments the account authentication epoch, revokes every existing session and creates a 15-minute `recovery` session.
+
+Recovery sessions can inspect account and workspace routing metadata but cannot perform state-changing or recent-authentication operations. They do not enroll a passkey, authorize an encrypted device, expose a content key or satisfy step-up authentication. A verified OIDC login is required to regain full application authority. Recovery issuance and redemption append minimal account security events without storing code material. The HTTP boundary requires the exact configured Origin, bounded JSON and the ordinary request budget; invalid account/code pairs return the same denial.
+
 ## Storage and rollout
 
 Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies ordered migrations 001–003, records their checksums and refuses edited history. The migration credential must remain separate from request credentials. Preserve applied files after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.
@@ -34,7 +40,7 @@ The identity service sees issuer/subject, internal IDs, membership, roles and au
 
 Supply independent random 32-byte SESSION_KEY and OIDC_STATE_KEY Buffers through server secret configuration, never source or command arguments. The latter encrypts short-lived login state using Node AES-256-GCM; it is not an application E2EE key. State-key rotation restarts pending logins; session-key rotation invalidates outstanding tokens. `pruneExpiredLogins` removes at most 500 expired challenges per call; connect it to ordinary bounded worker maintenance without renting a scheduler. Production session/account retention policy remains to implement.
 
-This contribution remains partial. Passkey assurance, recovery, encrypted-device trust, fleet-wide abuse controls/retention, production TLS evidence and deployed acceptance are pending. The HTTP/account UI has synthetic-provider browser evidence, not real-provider production acceptance. Human review is deferred under the owner policy. No complete E2EESA conformance or compromised-service authorization protection is claimed.
+This contribution remains partial. Full account restoration after provider loss, passkey assurance, encrypted-device trust, fleet-wide abuse controls/retention, production TLS evidence and deployed acceptance are pending. Recovery codes currently provide incident containment and restricted inspection only; they never confer full write or device authority. The HTTP/account UI has synthetic-provider browser evidence, not real-provider production acceptance. Human review is deferred under the owner policy. No complete E2EESA conformance or compromised-service authorization protection is claimed.
 
 ## Checks
 

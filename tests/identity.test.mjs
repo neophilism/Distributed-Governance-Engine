@@ -84,6 +84,29 @@ test('ordinary logout, all-session revocation, suspension and expiry are enforce
   const e=await account();await db.query("UPDATE dge_identity.accounts SET status='suspended' WHERE id=$1",[e.accountId]);
   await denied(store.account(e.sessionToken));await denied(account());
 });
+test('single-use recovery codes revoke sessions and create a read-only recovery session',async()=>{
+  const primary=await account(),second=await account();
+  const issued=await store.issueRecoveryCodes(primary);
+  assert.equal(issued.recoveryCodes.length,8);
+  const snapshot=JSON.stringify((await db.query('SELECT * FROM dge_identity.recovery_codes')).rows);
+  for(const code of issued.recoveryCodes)assert.ok(!snapshot.includes(code));
+  const recovery=await store.recoverAccount(primary.accountId,issued.recoveryCodes[0]);
+  await denied(store.account(primary.sessionToken));await denied(store.account(second.sessionToken));
+  assert.deepEqual(await store.sessionInfo(recovery.sessionToken),{
+    accountId:primary.accountId,expiresAt:recovery.expiresAt,authenticatedAt:new Date(time).toISOString(),authenticationMethod:'recovery',recoveryRestricted:true
+  });
+  await denied(store.createTenant({...recovery,origin}));
+  await denied(store.withTenant({...recovery,origin},randomUUID(),{},async()=>true));
+  await denied(store.recoverAccount(primary.accountId,issued.recoveryCodes[0]));
+  await denied(store.recoverAccount(randomUUID(),issued.recoveryCodes[1]));
+  await store.logout({...recovery,origin});await denied(store.account(recovery.sessionToken));
+  assert.deepEqual((await db.query('SELECT kind FROM dge_identity.account_security_events ORDER BY occurred_at,id')).rows.map(x=>x.kind).sort(),['recovery-code-redeemed','recovery-codes-issued']);
+});
+test('rotating recovery codes revoke earlier unused codes and expiry fails closed',async()=>{
+  const who=await account(),first=await store.issueRecoveryCodes(who),second=await store.issueRecoveryCodes(who);
+  await denied(store.recoverAccount(who.accountId,first.recoveryCodes[0]));
+  time+=30*86400000+1;await denied(store.recoverAccount(who.accountId,second.recoveryCodes[0]));
+});
 test('sensitive membership changes require login within five minutes',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;
   assert.equal((await store.members(owner,tenantId)).items.length,1);await denied(store.invite(owner,tenantId,target.accountId,'viewer'));

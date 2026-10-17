@@ -159,6 +159,52 @@ test("session endpoint returns account metadata without usable session or CSRF c
     403,
   );
 });
+test("recovery routes rotate codes and issue only restricted cookies", async () => {
+  const who = await user("recovery-owner");
+  const issued = await call("/api/recovery-codes", {
+    who,
+    method: "POST",
+    body: {},
+  });
+  assert.equal(issued.status, 201);
+  const { accountId, recoveryCodes } = await issued.json();
+  assert.equal(accountId, who.accountId);
+  assert.equal(recoveryCodes.length, 8);
+  assert.equal(
+    (
+      await call("/api/recovery-session", {
+        method: "POST",
+        body: { accountId, recoveryCode: recoveryCodes[0] },
+      })
+    ).status,
+    403,
+  );
+  const recovered = await call("/api/recovery-session", {
+    method: "POST",
+    body: { accountId, recoveryCode: recoveryCodes[0] },
+    headers: { origin },
+  });
+  assert.equal(recovered.status, 200);
+  assert.deepEqual(await recovered.json(), {
+    recovered: true,
+    recoveryRestricted: true,
+  });
+  const cookies = recovered.headers.getSetCookie().join("\n");
+  assert.match(cookies, /__Host-dge_session=/);
+  assert.match(cookies, /__Host-dge_csrf=/);
+  assert.ok(!cookies.includes(recoveryCodes[0]));
+  assert.equal(
+    (
+      await call("/api/recovery-session", {
+        method: "POST",
+        body: { accountId, recoveryCode: recoveryCodes[0] },
+        headers: { origin },
+      })
+    ).status,
+    403,
+  );
+  assert.equal((await call("/api/session", { who })).status, 401);
+});
 test("workspace creation is protected at the HTTP boundary and does not accept caller identity fields", async () => {
   const who = await user("a");
   for (const headers of [

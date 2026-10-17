@@ -4,7 +4,7 @@
   "roadmapVersion": 13,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T13:29:35.002Z",
+  "observedAt": "2026-10-17T21:15:00Z",
   "units": [
     {
       "id": "DCE-001",
@@ -50,7 +50,8 @@
       "contributingPrs": [
         4,
         6,
-        7
+        7,
+        11
       ]
     },
     {
@@ -1017,16 +1018,31 @@
       "id": 4900448309,
       "number": 10,
       "title": "DCE-015: Add structured debate and independent point voting (partial)",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/10",
       "createdAt": "2026-10-17T13:29:05Z",
-      "updatedAt": "2026-10-17T13:29:05Z",
+      "updatedAt": "2026-10-17T21:08:41Z",
+      "mergedAt": "2026-10-17T21:08:41Z",
+      "closedAt": "2026-10-17T21:08:41Z",
+      "draft": false,
+      "headSha": "3309a643e5f4ea9b5267516037ea9559839d2e9b",
+      "baseRef": "main",
+      "mergeCommitSha": "211dd9969e28209320112da5c9cb74da542b9a26"
+    },
+    {
+      "id": 4903967111,
+      "number": 11,
+      "title": "DCE-002: Add restricted account recovery (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/11",
+      "createdAt": "2026-10-17T21:11:57Z",
+      "updatedAt": "2026-10-17T21:14:04Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": false,
-      "headSha": "de424191e8d8a414268d078aa1fc029cc1af5b4c",
+      "headSha": "0153492a0fb29aa1f3a57ec4044d4e71db42336f",
       "baseRef": "main",
-      "mergeCommitSha": "447456ca34b6129ec79c1e8fff60170036b6b628"
+      "mergeCommitSha": "fe6d532794c2ade2ebcf0a15cea15c5945aa934c"
     }
   ]
 }
