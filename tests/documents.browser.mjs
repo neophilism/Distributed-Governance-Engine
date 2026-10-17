@@ -118,14 +118,65 @@ test(
           "Saved through the actual browser.",
         ),
       );
+
+      const composed = "法令🧑🏽‍⚖️ é ";
+      await owner.click(".ProseMirror p");
+      await owner.keyboard.press("Home");
+      await owner.evaluate(() =>
+        document.activeElement.dispatchEvent(
+          new CompositionEvent("compositionstart", { bubbles: true, data: "" }),
+        ),
+      );
+      await owner.keyboard.insertText(composed);
+      await owner.evaluate((text) =>
+        document.activeElement.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true, data: text }),
+        ), composed);
+      await saved(owner, 3);
+      assert.ok(
+        (await owner.$eval(".ProseMirror", (el) => el.textContent)).includes(
+          composed,
+        ),
+        "Committed IME text must preserve CJK, emoji sequences and combining marks.",
+      );
+
+      let droppedSave = false;
+      const dropNextSave = (request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          !droppedSave &&
+          request.method() === "PUT" &&
+          path === `/api/workspaces/public-demo/documents/${id}`
+        ) {
+          droppedSave = true;
+          request.abort("internetdisconnected");
+        } else request.continue();
+      };
+      await owner.setRequestInterception(true);
+      owner.on("request", dropNextSave);
+      await prepend(owner, "Recovered after an interrupted save. ");
+      await owner.waitForFunction(() =>
+        document.querySelector(".save-controls")?.textContent.includes("Save failed"),
+      );
+      assert.equal(droppedSave, true);
+      assert.ok(
+        (await owner.$eval(".ProseMirror", (el) => el.textContent)).includes(
+          "Recovered after an interrupted save.",
+        ),
+        "An uncertain save must leave the local wording visible.",
+      );
+      owner.off("request", dropNextSave);
+      await owner.setRequestInterception(false);
+      await click(owner, "Save now");
+      await saved(owner, 4);
       await owner.reload();
       await click(owner, "Documents");
       await owner.waitForSelector(".document-list button");
       await owner.click(".document-list button");
-      await saved(owner, 2);
+      await saved(owner, 4);
       assert.ok(
         (await owner.$eval(".ProseMirror", (el) => el.textContent)).includes(
-          "Saved through the actual browser.",
+          "Recovered after an interrupted save.",
         ),
       );
       const publicContext = await browser.createBrowserContext(),
@@ -163,9 +214,9 @@ test(
       other.setDefaultTimeout(15000);
       await other.goto(fixture.origin + "/");
       await openCurrent(other);
-      await saved(other, 2);
+      await saved(other, 4);
       await prepend(owner, "First author wins this version. ");
-      await saved(owner, 3);
+      await saved(owner, 5);
       await prepend(other, "Keep this conflicting local wording. ");
       await other.waitForFunction(() =>
         document
