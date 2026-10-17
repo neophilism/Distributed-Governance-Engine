@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 10,
+  "roadmapVersion": 11,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T12:59:00.173Z",
+  "observedAt": "2026-10-17T13:00:31.329Z",
   "units": [
     {
       "id": "DCE-001",
@@ -209,8 +209,11 @@
         "Unicode selections, overlapping ranges, stale/rebased anchors, text replacement, deleted targets and ambiguous quote tests."
       ],
       "specification": "docs/prs/DCE-009.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        9
+      ]
     },
     {
       "id": "DCE-010",
@@ -988,6 +991,21 @@
       "headSha": "7eb1a291ea2f543e512c1fcc4c7945988609bb5a",
       "baseRef": "main",
       "mergeCommitSha": "807fb22aa54351526d0a762c825033044403fd9f"
+    },
+    {
+      "id": 4900254080,
+      "number": 9,
+      "title": "DCE-009: Publish exact-version text suggestions in the shared Quill panel (partial)",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/9",
+      "createdAt": "2026-10-17T13:00:04Z",
+      "updatedAt": "2026-10-17T13:00:04Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": false,
+      "headSha": "1f8cea0175186b4081821f124bc80f33d22bcedb",
+      "baseRef": "main",
+      "mergeCommitSha": "a4c06b758855406cf1c918be5e234cdfdfd28f33"
     }
   ]
 }
