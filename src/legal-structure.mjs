@@ -1,5 +1,5 @@
 import {canonicalize,identifier,invariant} from './integrity-values.mjs';
-import {legalLabel,FEDERAL_HIERARCHY} from './numbering.mjs';
+import {legalLabel,NUMBERING_PROFILES} from './numbering.mjs';
 
 export const LEGAL_SCHEMA_VERSION=2;
 export const LEGAL_LIMITS=Object.freeze({nodes:10000,depth:16,bytes:3000000,text:1000000});
@@ -61,6 +61,24 @@ export function normalizeCitationMetadata(value) {
  for(const key of ['publisher','publishedOn','pinpoint','accessedOn'])if(Object.hasOwn(value,key)){invariant(typeof value[key]==='string','Citation metadata values must be strings');if(value[key].trim())next[key]=value[key].trim();}
  validateCitationMetadata(next);return freeze(next);
 }
+function validateNumberingRules(rules) {
+ denseArray(rules,1000);
+ const owners=new Set();
+ for(const rule of rules) {
+  fields(rule,['parentId','startAt','reserved'],['parentId']);
+  identifier(rule.parentId);
+  invariant(!owners.has(rule.parentId),'Duplicate numbering parent');owners.add(rule.parentId);
+  if(rule.startAt!==undefined)invariant(Number.isSafeInteger(rule.startAt)&&rule.startAt>=1&&rule.startAt<=1000000,'Invalid numbering start');
+  if(rule.reserved!==undefined) {
+   denseArray(rule.reserved,2000);
+   let previous=0;
+   for(const ordinal of rule.reserved) {
+    invariant(Number.isSafeInteger(ordinal)&&ordinal>previous&&ordinal<=1000000,'Reserved numbers must be strictly increasing positive integers');
+    previous=ordinal;
+   }
+  }
+ }
+}
 function validateInlines(inlines,refs,schemaVersion) {
  denseArray(inlines,10000);
  for(const run of inlines) {
@@ -87,9 +105,10 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
  invariant(['collaboration','public-input'].includes(input.mode),'Invalid legal document mode');
  invariant(['draft','published','adopted','signed'].includes(input.lifecycle),'Invalid document lifecycle');
  invariant(Number.isSafeInteger(input.revision)&&input.revision>=0,'Invalid legal revision');
- fields(input.metadata,['title','locale','numberingProfile'],['title','locale','numberingProfile']);text(input.metadata.title,1000);
+ fields(input.metadata,['title','locale','numberingProfile','numberingRules'],['title','locale','numberingProfile']);text(input.metadata.title,1000);
  invariant(typeof input.metadata.locale==='string'&&/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(input.metadata.locale),'Invalid document locale');
- invariant(['us-federal-v1','decimal-v1'].includes(input.metadata.numberingProfile),'Unsupported numbering profile');
+ const hierarchy=NUMBERING_PROFILES[input.metadata.numberingProfile];invariant(hierarchy,'Unsupported numbering profile');
+ if(input.metadata.numberingRules!==undefined)validateNumberingRules(input.metadata.numberingRules);
  if(input.provenance!==undefined){fields(input.provenance,['fromSchema','sourceDigest'],['fromSchema','sourceDigest']);invariant(input.provenance.fromSchema==='foundation-blocks-v0'&&/^[a-f0-9]{64}$/.test(input.provenance.sourceDigest),'Invalid migration provenance');}
  if(input.schemaMigration!==undefined){fields(input.schemaMigration,['fromVersion','toVersion','sourceDigest'],['fromVersion','toVersion','sourceDigest']);invariant(input.schemaVersion===2&&input.schemaMigration.fromVersion===1&&input.schemaMigration.toVersion===2&&/^[a-f0-9]{64}$/.test(input.schemaMigration.sourceDigest),'Invalid schema migration evidence');}
  const ids=new Map([[input.id,{kind:'document'}]]),refs=[];
@@ -97,7 +116,7 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
  function visit(node,depth,sectionDepth=0) {
   invariant(depth<=LEGAL_LIMITS.depth&&++count<=LEGAL_LIMITS.nodes,'Legal document structural limit exceeded');
   safeRecord(node);
-  if(node.kind==='section'){sectionDepth++;invariant(sectionDepth<=(input.metadata.numberingProfile==='us-federal-v1'?FEDERAL_HIERARCHY.length:16),'Legal numbering depth limit exceeded');}
+  if(node.kind==='section'){sectionDepth++;invariant(sectionDepth<=hierarchy.length,'Legal numbering depth limit exceeded');}
   invariant(node&&typeof node.kind==='string','Missing legal node kind');
   identifier(node.id);invariant(!ids.has(node.id),'Duplicate legal node ID');ids.set(node.id,node);
   if(['paragraph','footnote','definition'].includes(node.kind)) {
@@ -117,6 +136,7 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
  }
  denseArray(input.content,LEGAL_LIMITS.nodes);invariant(input.content.length>0,'Empty legal document');
  for(const node of input.content){safeRecord(node);invariant(ROOT_KINDS.has(node.kind),'Invalid top-level legal node');visit(node,1);}
+ for(const rule of input.metadata.numberingRules??[]){const parent=ids.get(rule.parentId);invariant(parent&&['document','section','exhibit'].includes(parent.kind),'Numbering parent must be a document, section or exhibit');}
  for(const ref of refs){const target=ids.get(ref.targetId);if(forFinalization||input.lifecycle!=='draft')invariant(target,'Unresolved cross-reference');if(target&&ref.kind==='footnote-reference')invariant(target.kind==='footnote','Footnote reference points to a non-footnote');}
  invariant(new TextEncoder().encode(canonicalize(input)).byteLength<=LEGAL_LIMITS.bytes,'Legal document byte limit exceeded');
  return freeze(structuredClone(input));
@@ -158,9 +178,84 @@ export function publicInputEdition(document) {
 }
 export function legalOutline(document) {
  const doc=validateLegalDocument(document),result=[];
- const profile=doc.metadata.numberingProfile==='us-federal-v1'?FEDERAL_HIERARCHY:Array(16).fill('decimal');
- function walk(children,depth){let ordinal=0;for(const node of children){if(node.kind==='section'){ordinal++;invariant(depth<profile.length,'Numbering hierarchy exhausted');result.push({id:node.id,title:node.title,label:legalLabel(ordinal,depth,profile),depth});walk(node.children,depth+1);}else if(node.children)walk(node.children,depth);}}
- walk(doc.content,0);return result;
+ const profile=NUMBERING_PROFILES[doc.metadata.numberingProfile];
+ const rules=new Map((doc.metadata.numberingRules??[]).map(rule=>[rule.parentId,rule]));
+ function walk(children,depth,parentId) {
+  const rule=rules.get(parentId);
+  let ordinal=rule?.startAt??1;
+  const reserved=new Set(rule?.reserved??[]);
+  for(const node of children) {
+   if(node.kind==='section') {
+    while(reserved.has(ordinal))ordinal++;
+    invariant(depth<profile.length,'Numbering hierarchy exhausted');
+    result.push({id:node.id,title:node.title,label:legalLabel(ordinal,depth,profile),depth});
+    ordinal++;
+    walk(node.children,depth+1,node.id);
+   } else if(node.children)walk(node.children,depth,node.id);
+  }
+ }
+ walk(doc.content,0,doc.id);return result;
+}
+
+/** Preview only: never alters document source, ballots, or adopted editions. */
+export function previewLegalNumbering(document,numberingRules) {
+ const doc=validateLegalDocument(document);
+ const before=legalOutline(doc);
+ const candidate=validateLegalDocument({...structuredClone(doc),metadata:{...structuredClone(doc.metadata),numberingRules}});
+ const after=legalOutline(candidate);
+ const original=new Map(before.map(item=>[item.id,item]));
+ const changed=after.filter(item=>original.get(item.id)?.label!==item.label).map(item=>({
+  id:item.id,from:original.get(item.id)?.label??null,to:item.label
+ }));
+ const renamed=new Map(changed.map(item=>[item.id,item]));
+ const affectedReferences=[];
+ function scan(node) {
+  for(const run of node.inlines??[])if(['reference','footnote-reference'].includes(run.kind)&&renamed.has(run.targetId)) {
+   const label=renamed.get(run.targetId);
+   affectedReferences.push({sourceId:node.id,targetId:run.targetId,from:label.from,to:label.to});
+  }
+  for(const child of node.children??[])scan(child);
+ }
+ doc.content.forEach(scan);
+ return {before,after,changed,affectedReferences};
+}
+
+/** Replace draft numbering preferences without modifying any semantic IDs or text. */
+export function applyLegalNumberingRules(document,numberingRules) {
+ const doc=validateLegalDocument(document);requireDraft(doc);
+ const next={...structuredClone(doc),revision:doc.revision+1,metadata:{...structuredClone(doc.metadata),numberingRules}};
+ const result=validateLegalDocument(next);
+ legalOutline(result); // Reject styles, ordinals and reservations that cannot render.
+ return result;
+}
+
+function sectionLocation(document,sectionId) {
+ identifier(sectionId);
+ const nodes=new Map([[document.id,document]]),parents=new Map();
+ function scan(children,parent) {
+  for(const node of children){nodes.set(node.id,node);parents.set(node.id,parent);scan(node.children??[],node);}
+ }
+ scan(document.content,document);
+ const section=nodes.get(sectionId);
+ invariant(section&&section.kind==='section','Unknown section');
+ const parent=parents.get(sectionId);
+ const siblings=parent===document?document.content:parent.children;
+ return {section,parent,siblings,index:siblings.indexOf(section),parents};
+}
+export function indentLegalSection(document,sectionId) {
+ const doc=validateLegalDocument(document);requireDraft(doc);
+ const location=sectionLocation(doc,sectionId);
+ const previous=location.siblings.slice(0,location.index).reverse().find(node=>node.kind==='section');
+ invariant(previous,'Indent requires a preceding sibling section');
+ return moveLegalNode(doc,sectionId,previous.id,previous.children.length);
+}
+export function outdentLegalSection(document,sectionId) {
+ const doc=validateLegalDocument(document);requireDraft(doc);
+ const location=sectionLocation(doc,sectionId);
+ invariant(location.parent.kind==='section','Only a nested section can be outdented');
+ const grandparent=location.parents.get(location.parent.id);
+ const siblings=grandparent===doc?doc.content:grandparent.children;
+ return moveLegalNode(doc,sectionId,grandparent.id,siblings.indexOf(location.parent)+1);
 }
 export function legalPlainText(document) {
  const doc=validateLegalDocument(document),labels=new Map(legalOutline(doc).map(x=>[x.id,x.label]));
