@@ -89,8 +89,8 @@ export function createPrivateDocumentStore({
  };
  const context=(credentials,tenantId,write,operation)=>identity.withTenant(
   credentials,tenantId,{write,roles:write?allowWrite:undefined},operation);
- async function requireDevice(db,actor,documentId,keyEpoch,operation){
-  const accepted=await authorizeDevice({db,actor,tenantId:actor.tenantId,documentId,keyEpoch,operation});
+ async function requireDevice(db,actor,credentials,documentId,keyEpoch,operation){
+  const accepted=await authorizeDevice({db,actor,credentials,tenantId:actor.tenantId,documentId,keyEpoch,operation});
   requireValue(accepted===true,'PRIVATE_DEVICE_NOT_AUTHORIZED',403);
  }
  async function prior(db,tenantId,id,requestDigest,documentId){
@@ -138,7 +138,7 @@ export function createPrivateDocumentStore({
    const parsed=parseEnvelope(envelope);
    const requestDigest=hash('dge-private-document-command-v1',{action:'create',documentId,envelope});
    return context(credentials,tenantId,true,async(db,actor)=>{
-    await requireDevice(db,actor,documentId,parsed.keyEpoch,'create');
+    await requireDevice(db,actor,credentials,documentId,parsed.keyEpoch,'create');
     const previous=await prior(db,tenantId,id,requestDigest,documentId);
     if(previous)return previous;
     const count=(await db.query(
@@ -171,7 +171,7 @@ export function createPrivateDocumentStore({
     )).rows[0];
     requireValue(row,'PRIVATE_DOCUMENT_NOT_FOUND',404);
     requireValue(row.current_digest===row.digest&&row.pointer_epoch===row.key_epoch,'PRIVATE_INTEGRITY_ERROR',503);
-    await requireDevice(db,actor,documentId,row.key_epoch,'read');
+    await requireDevice(db,actor,credentials,documentId,row.key_epoch,'read');
     return snapshot(row,tenantId,documentId);
    });
   },
@@ -184,7 +184,7 @@ export function createPrivateDocumentStore({
     action:'save',documentId,expectedVersion:payload.expectedVersion,envelope:payload.envelope
    });
    return context(credentials,tenantId,true,async(db,actor)=>{
-    await requireDevice(db,actor,documentId,parsed.keyEpoch,'save');
+    await requireDevice(db,actor,credentials,documentId,parsed.keyEpoch,'save');
     const replay=await prior(db,tenantId,payload.commandId,requestDigest,documentId);
     if(replay)return replay;
     const row=(await db.query(
@@ -203,7 +203,7 @@ export function createPrivateDocumentStore({
     if(parsed.keyEpoch!==row.key_epoch) {
      requireValue(parsed.keyEpoch===row.key_epoch+1&&
       typeof authorizeEpochAdvance==='function','PRIVATE_REKEY_REQUIRED',409);
-     const allowed=await authorizeEpochAdvance({db,actor,tenantId,documentId,
+     const allowed=await authorizeEpochAdvance({db,actor,credentials,tenantId,documentId,
       previousEpoch:row.key_epoch,nextEpoch:parsed.keyEpoch});
      requireValue(allowed===true,'PRIVATE_REKEY_REQUIRED',409);
     }
