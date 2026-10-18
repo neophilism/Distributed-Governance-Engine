@@ -402,10 +402,12 @@ test("Yjs snapshots persist atomically with public document version and are reco
  assert.deepEqual((await otherStore.read(reader,tenantId,changed.id)).document,changed);
  assert.deepEqual(await documents.save(owner,tenantId,changed.id,request),saved);
  await assert.rejects(otherStore.collaborationState(outsider,tenantId,changed.id));
- await transaction(async tx=>{
-  await assert.rejects(tx.query("UPDATE dge_documents.crdt_states SET state=decode('00','hex')"),/permission denied/);
-  await assert.rejects(tx.query("DELETE FROM dge_documents.crdt_states"),/permission denied/);
- });
+ await assert.rejects(transaction(tx=>tx.query(
+  "UPDATE dge_documents.crdt_states SET state=decode('00','hex')"
+ )),/permission denied/);
+ await assert.rejects(transaction(tx=>tx.query(
+  "DELETE FROM dge_documents.crdt_states"
+ )),/permission denied/);
  const tampered=edit(changed,"Different words");
  await assert.rejects(documents.save(owner,tenantId,changed.id,{
   document:tampered,commandId:randomUUID(),expectedVersion:2,crdtState
