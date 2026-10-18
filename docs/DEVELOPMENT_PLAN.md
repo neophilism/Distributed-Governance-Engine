@@ -67,3 +67,12 @@ The public saved-document contribution adds authorized persistence, serial autos
 The DCE-009 contribution binds paragraph selections to exact immutable source editions, stores public replacement proposals and rationales, and connects a slide-out review panel. Creation currently requires a workspace contributor role. Public participation policy, structured points/votes, proposal revisions and governance adoption remain unfinished. See TEXT_PROPOSALS.md.
 
 Structured public pro/con/clarification points, typed replies and independent point ratings now contribute to DCE-015/016. Ranking has bounded generation-aware pagination; votes have safe retries, history, self-vote rejection and concurrent-change checks. Workspace contributors only; reputation, moderation, public admission and decision ballots remain pending. See STRUCTURED_DISCUSSION.md.
+
+
+## October 18, 2026 — verified private-source contributions, not production completion
+
+Merged PR #30 adds client-owned AES-GCM framing for encrypted Yjs binary updates; #33 provides immutable tenant-scoped ciphertext-only private documents (migration 014); #34 adds a durable per-device/epoch replay-controlled ciphertext ledger (migration 015); #35 adds a dedicated TLS 1.3 private WebSocket relay with strict session and device gates; #36 verifies a full signed-in account → TLS WebSocket → Postgres → second Yjs client → member-revocation path with **synthetic** device verification. All changes remain correctly mapped as **partial** DCE-003/DCE-008 contributions in the canonical registry.
+
+The source must not be represented as usable private end-to-end-encrypted collaboration: the backend does not mount its private routes, no production reviewed MLS group-key and attested-device provider is installed, and the private WebSocket service has not been deployed. The real TLS/Postgres integration test is an important boundary test but is not certification or real-hardware assurance. Actual OpenMLS/WASM group integration, encrypted recovery and rotation after removals, sender authentication, snapshot/CRDT convergence across browsers, cross-instance fanout and security/deployment acceptance remain next tasks.
+
+DCE-002 (passkey verifier and provider restoration), DCE-005 (editor/browser/accessibility acceptance), DCE-006/007 (configuration UI and complete reference workflows) remain partial despite tested advances. Do not infer acceptance from contribution PR counts.
