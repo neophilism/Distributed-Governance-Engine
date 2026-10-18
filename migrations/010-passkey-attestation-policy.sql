@@ -1,5 +1,5 @@
 -- Persist the exact server policy evidence applied to each new passkey.
--- Existing credentials remain usable but retain NULL evidence rather than invented metadata.
+-- Existing credentials remain usable with an explicit unrecorded sentinel.
 ALTER TABLE dge_identity.passkey_credentials
   ADD COLUMN attestation_policy_id text,
   ADD COLUMN attestation_format text,
