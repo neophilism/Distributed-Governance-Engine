@@ -229,10 +229,12 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
     }),
     revokePasskey:(credentials,credentialId)=>transaction(async db=>{
       const actor=await session(db,credentials,true,true,false,'multifactor');deny(uuid(credentialId));const revokedAt=now();
+      const existing=await db.query('SELECT id FROM dge_identity.passkey_credentials WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL',[credentialId,actor.id]);
+      deny(existing.rows.length);
+      await db.query('UPDATE dge_identity.sessions SET passkey_verified_at=NULL,passkey_credential_id=NULL WHERE account_id=$1 AND passkey_credential_id=$2',[actor.id,credentialId]);
       const changed=await db.query('UPDATE dge_identity.passkey_credentials SET revoked_at=$3 WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL RETURNING id',[credentialId,actor.id,revokedAt]);
       deny(changed.rows.length);
       const devices=await db.query('UPDATE dge_identity.authorized_devices SET revoked_at=$2 WHERE passkey_credential_id=$1 AND revoked_at IS NULL RETURNING id',[credentialId,revokedAt]);
-      await db.query('UPDATE dge_identity.sessions SET passkey_verified_at=NULL,passkey_credential_id=NULL WHERE account_id=$1 AND passkey_credential_id=$2',[actor.id,credentialId]);
       await securityEvent(db,actor.id,'passkey-revoked',revokedAt);
       return {revoked:true,devicesRevoked:devices.rows.length};
     }),
