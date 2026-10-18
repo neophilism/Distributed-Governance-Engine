@@ -309,3 +309,13 @@ test("overly nested proposal input fails as a client error without leaking detai
   );
   assert.equal(response.status, 400);
 });
+
+test("proposal quota checks lock the shared document before counting concurrent submissions", async () => {
+  // Regression guard: a shared (FOR SHARE) lock permits both transactions to
+  // count the same prior rows. An exclusive row lock serializes count+insert.
+  const source = await (await import("node:fs/promises")).readFile(
+    new URL("../server/proposal-store.mjs", import.meta.url), "utf8"
+  );
+  assert.match(source, /SELECT version FROM dge_documents\.documents WHERE tenant_id=\$1 AND id=\$2 FOR UPDATE/);
+  assert.doesNotMatch(source, /SELECT version FROM dge_documents\.documents WHERE tenant_id=\$1 AND id=\$2 FOR SHARE/);
+});
