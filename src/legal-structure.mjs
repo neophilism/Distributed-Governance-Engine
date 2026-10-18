@@ -143,11 +143,76 @@ export function validateLegalDocument(input,{forFinalization=false}={}) {
 }
 
 
-export function documentIssues(document) {
- const doc=validateLegalDocument(document),ids=new Set([doc.id]),references=[];
- function visit(node){ids.add(node.id);for(const run of node.inlines??[])if(['reference','footnote-reference'].includes(run.kind))references.push({sourceId:node.id,...run});for(const child of node.children??[])visit(child);}
+/** Deterministic diagnostics and backlinks. Analysis never edits or adopts a document. */
+export function legalReferenceAnalysis(document) {
+ const doc=validateLegalDocument(document),nodes=new Map([[doc.id,{kind:'document'}]]);
+ const refs=[],definitions=[],issues=[];
+ function visit(node) {
+  nodes.set(node.id,node);
+  if(node.kind==='definition')definitions.push(node);
+  for(const run of node.inlines??[])if(['reference','footnote-reference'].includes(run.kind))
+   refs.push({sourceId:node.id,targetId:run.targetId,kind:run.kind});
+  for(const child of node.children??[])visit(child);
+ }
  doc.content.forEach(visit);
- return references.filter(r=>!ids.has(r.targetId)).map(r=>({code:'UNRESOLVED_REFERENCE',sourceId:r.sourceId,targetId:r.targetId}));
+ for(const ref of refs) {
+  const target=nodes.get(ref.targetId);
+  if(!target)issues.push({code:'UNRESOLVED_REFERENCE',sourceId:ref.sourceId,targetId:ref.targetId});
+  else if(ref.kind==='footnote-reference'&&target.kind!=='footnote')
+   issues.push({code:'INVALID_FOOTNOTE_TARGET',sourceId:ref.sourceId,targetId:ref.targetId});
+ }
+ const terms=new Map();
+ for(const def of definitions) {
+  const term=def.term.trim();
+  if(!term) {issues.push({code:'EMPTY_DEFINED_TERM',sourceId:def.id});continue;}
+  const key=term.normalize('NFC').toLocaleLowerCase(doc.metadata.locale);
+  const previous=terms.get(key);
+  if(previous)issues.push({code:'AMBIGUOUS_DEFINED_TERM',sourceId:def.id,otherId:previous,term});
+  else terms.set(key,def.id);
+ }
+ const graph=new Map(definitions.map(def=>[def.id,[]]));
+ for(const ref of refs)if(graph.has(ref.sourceId)&&graph.has(ref.targetId))
+  graph.get(ref.sourceId).push(ref.targetId);
+ // Iterative depth-first search avoids overflowing the stack on long legal references.
+ const colors=new Map(),active=[],positions=new Map(),cyclic=new Set();
+ for(const def of definitions) {
+  if(colors.has(def.id))continue;
+  const stack=[{id:def.id,next:0}];
+  while(stack.length) {
+   const top=stack.at(-1);
+   if(!colors.has(top.id)){colors.set(top.id,1);positions.set(top.id,active.length);active.push(top.id);}
+   const neighbors=graph.get(top.id);
+   if(top.next<neighbors.length) {
+    const target=neighbors[top.next++];
+    if(!colors.has(target))stack.push({id:target,next:0});
+    else if(colors.get(target)===1)for(let i=positions.get(target);i<active.length;i++)cyclic.add(active[i]);
+   } else {
+    colors.set(top.id,2);positions.delete(top.id);active.pop();stack.pop();
+   }
+  }
+ }
+ for(const def of definitions)if(cyclic.has(def.id))
+  issues.push({code:'CYCLIC_DEFINITION',sourceId:def.id});
+ const backlinks=new Map();
+ for(const ref of refs)backlinks.set(ref.targetId,[...(backlinks.get(ref.targetId)??[]),ref]);
+ return {issues,backlinks,definitionCount:definitions.length,referenceCount:refs.length};
+}
+export function documentIssues(document) {
+ return legalReferenceAnalysis(document).issues;
+}
+export function previewLegalNodeMove(document,nodeId,parentId,index) {
+ const doc=validateLegalDocument(document);
+ const before=legalOutline(doc),afterDoc=moveLegalNode(doc,nodeId,parentId,index),after=legalOutline(afterDoc);
+ const prev=new Map(before.map(row=>[row.id,row.label]));
+ const renamed=after.filter(row=>prev.get(row.id)!==row.label).map(row=>({
+  id:row.id,from:prev.get(row.id)??null,to:row.label
+ }));
+ const changed=new Map(renamed.map(x=>[x.id,x]));
+ const backlinks=legalReferenceAnalysis(afterDoc).backlinks;
+ const affectedReferences=[];
+ for(const [id,labels] of changed)for(const ref of backlinks.get(id)??[])
+  affectedReferences.push({sourceId:ref.sourceId,targetId:id,from:labels.from,to:labels.to});
+ return {renamed,affectedReferences,issues:documentIssues(afterDoc),preview:after};
 }
 export function createLegalDocument({id,tenantId,title,locale='en-US',mode='collaboration'}) {
  return validateLegalDocument({schemaVersion:LEGAL_SCHEMA_VERSION,id,tenantId,mode,lifecycle:'draft',revision:0,metadata:{title,locale,numberingProfile:'us-federal-v1'},content:[{kind:'paragraph',id:id+':p1',inlines:[{kind:'text',text:''}]}]});
@@ -169,11 +234,12 @@ export function moveLegalNode(document,nodeId,newParentId,index) {
  return validateLegalDocument(next);
 }
 export function finalizeLegalDocument(document,lifecycle='adopted') {
- const doc=validateLegalDocument(document,{forFinalization:true});requireDraft(doc);invariant(['published','adopted'].includes(lifecycle),'Execution signing requires the signing protocol');
+ const doc=validateLegalDocument(document,{forFinalization:true});requireDraft(doc);
+ invariant(documentIssues(doc).length===0,'Resolve ambiguous or cyclic definitions before finalization');invariant(['published','adopted'].includes(lifecycle),'Execution signing requires the signing protocol');
  return validateLegalDocument({...structuredClone(doc),revision:doc.revision+1,lifecycle},{forFinalization:true});
 }
 export function publicInputEdition(document) {
- const doc=validateLegalDocument(document,{forFinalization:true});invariant(doc.lifecycle!=='signed','Signed editions require an explicit publication/export protocol');
+ const doc=validateLegalDocument(document,{forFinalization:true});invariant(documentIssues(doc).length===0,'Resolve legal reference issues before publishing');invariant(doc.lifecycle!=='signed','Signed editions require an explicit publication/export protocol');
  return validateLegalDocument({...structuredClone(doc),mode:'public-input',lifecycle:'published',revision:doc.revision+1},{forFinalization:true});
 }
 export function legalOutline(document) {
