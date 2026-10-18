@@ -154,6 +154,20 @@ test('passkey enrollment requires immutable explicit attestation policy evidence
   const unavailable=createIdentityStore({...options(),verifyPasskeyRegistration:undefined,verifyPasskeyAuthentication:undefined,passkeyAttestationPolicy:undefined});
   await assert.rejects(unavailable.beginPasskeyEnrollment(who),error=>error instanceof AccessError&&error.code==='PASSKEY_VERIFIER_UNAVAILABLE');
 });
+test('passkey revocation clears its step-up and every linked authorized device',async()=>{
+  const who=await account(),other=await account('other'),credentialId=randomBytes(32).toString('base64url');
+  const enrollment=await store.beginPasskeyEnrollment(who),enrolled=await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId});
+  const authentication=await store.beginPasskeyAuthentication(who);
+  await store.finishPasskeyAuthentication(who,authentication.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1});
+  await store.authorizeDevice(who,'c'.repeat(64));
+  assert.equal((await store.passkeys(who)).items.length,1);
+  await denied(store.revokePasskey(other,enrolled.credentialId));
+  assert.deepEqual(await store.revokePasskey(who,enrolled.credentialId),{revoked:true,devicesRevoked:1});
+  assert.equal((await store.passkeys(who)).items.length,0);assert.equal((await store.devices(who)).items.length,0);
+  await denied(store.authorizeDevice(who,'d'.repeat(64)));await denied(store.beginPasskeyAuthentication(who));
+  await denied(store.revokePasskey(who,enrolled.credentialId));
+  assert.ok((await db.query("SELECT 1 FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='passkey-revoked'",[who.accountId])).rows[0]);
+});
 test('recovery and primary-only sessions cannot enroll passkeys or authorize devices',async()=>{
   const primary={...await store.establishSession({issuer:'https://identity.example',subject:'primary-passkey',authenticatedAt:time,authenticationMethods:['pwd']}),origin};
   await denied(store.beginPasskeyEnrollment(primary));
@@ -161,13 +175,13 @@ test('recovery and primary-only sessions cannot enroll passkeys or authorize dev
   await denied(store.beginPasskeyEnrollment(recovery));await denied(store.beginPasskeyAuthentication(recovery));await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
 });
 test('provider restoration requires the restricted session and its already-enrolled passkey',async()=>{
-  const who=await account('provider-loss'),claimed=await account('claimed','https://replacement.example'),enrollment=await store.beginPasskeyEnrollment(who);
+  const who=await account('provider-loss'),claimed=await account('claimed','https://replacement.example'),credentialId=randomBytes(32).toString('base64url'),enrollment=await store.beginPasskeyEnrollment(who);
   await denied(store.restoreProviderIdentity(who,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time}));
-  await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId});
+  await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId});
   const codes=await store.issueRecoveryCodes(who),recovery={...await store.recoverAccount(who.accountId,codes.recoveryCodes[0]),origin};
   await denied(store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time}));
   const authentication=await store.beginPasskeyAuthentication(recovery);
-  await store.finishPasskeyAuthentication(recovery,authentication.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1});
+  await store.finishPasskeyAuthentication(recovery,authentication.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1});
   await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
   await assert.rejects(store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'claimed',authenticatedAt:time}),error=>error instanceof AccessError&&error.code==='IDENTITY_ALREADY_LINKED');
   assert.equal((await store.sessionInfo(recovery.sessionToken)).recoveryRestricted,true);assert.ok(await store.account(claimed.sessionToken));
@@ -175,7 +189,7 @@ test('provider restoration requires the restricted session and its already-enrol
   assert.equal(restored.accountId,who.accountId);assert.equal(restored.authenticationMethod,'oidc');assert.equal(restored.authenticationAssurance,'multifactor');
   await denied(store.account(recovery.sessionToken));assert.equal((await store.account(restored.sessionToken)).accountId,who.accountId);
   assert.deepEqual((await db.query('SELECT issuer,subject FROM dge_identity.accounts WHERE id=$1',[who.accountId])).rows,[{issuer:'https://replacement.example',subject:'replacement'}]);
-  assert.ok((await db.query("SELECT 1 FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='provider-identity-restored'",[who.accountId])).rows.length);
+  assert.ok((await db.query("SELECT 1 FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='provider-identity-restored'",[who.accountId])).rows[0]);
 });
 test('sensitive membership changes require login within five minutes',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;

@@ -8,6 +8,7 @@ ALTER TABLE dge_identity.account_security_events
     'recovery-code-redeemed',
     'passkey-enrolled',
     'passkey-authenticated',
+    'passkey-revoked',
     'device-authorized',
     'device-revoked',
     'provider-identity-restored'

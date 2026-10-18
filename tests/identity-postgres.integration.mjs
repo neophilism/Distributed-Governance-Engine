@@ -84,6 +84,11 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     assert.equal((await store.devices(passkeyUser)).items.length,1);
     const rollback=await store.beginPasskeyAuthentication(passkeyUser);
     await assert.rejects(store.finishPasskeyAuthentication(passkeyUser,rollback.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1}),AccessError);
+    const stored=(await store.passkeys(passkeyUser)).items[0];
+    const race=await Promise.allSettled([store.revokePasskey(passkeyUser,stored.id),store.authorizeDevice(passkeyUser,'b'.repeat(64))]);
+    assert.equal(race[0].status,'fulfilled');
+    assert.equal((await store.devices(passkeyUser)).items.length,0);
+    await assert.rejects(store.authorizeDevice(passkeyUser,'c'.repeat(64)),AccessError);
   });
   await t.test('provider restoration atomically replaces identity and revokes the restricted session',async()=>{
     const recoveryUser=await user(),credentialId=randomBytes(32).toString('base64url');

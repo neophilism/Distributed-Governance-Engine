@@ -316,6 +316,18 @@ export function createAccountHandler({
         const body = await boundedJson(request, ["challenge", "response"], undefined, 65536);
         return json(await store.finishPasskeyAuthentication(credentials, body.challenge, body.response));
       }
+      if (url.pathname === "/api/passkeys") {
+        method(["GET"]);
+        if (url.search) throw new HttpError(400, "INVALID_QUERY");
+        return json(await store.passkeys(credentials));
+      }
+      const passkeyRoute = url.pathname.match(/^\/api\/passkeys\/([a-f0-9-]+)$/);
+      if (passkeyRoute && uuid.test(passkeyRoute[1])) {
+        method(["DELETE"]);
+        write();
+        await boundedJson(request, []);
+        return json(await store.revokePasskey(credentials, passkeyRoute[1]));
+      }
       if (url.pathname === "/api/devices") {
         method(["GET", "POST"]);
         if (request.method === "GET") return json(await store.devices(credentials));

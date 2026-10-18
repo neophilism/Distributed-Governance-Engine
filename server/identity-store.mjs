@@ -14,7 +14,7 @@ const policyId=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.tes
 const attestationFormat=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value);
 const aaguid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql','010-passkey-attestation-policy.sql','011-provider-restoration.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql','010-passkey-attestation-policy.sql','011-passkey-revocation.sql','012-provider-restoration.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
@@ -220,6 +220,24 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
         await db.query('UPDATE dge_identity.sessions SET passkey_verified_at=$2,passkey_credential_id=$3 WHERE token_digest=$1',[actor.token_digest,consumed.usedAt,credential.id]);
         await securityEvent(db,actor.id,'passkey-authenticated',consumed.usedAt);return {verified:true,expiresAt:new Date(consumed.usedAt.getTime()+300000).toISOString()};});
     },
+    passkeys:credentials=>transaction(async db=>{
+      const actor=await session(db,credentials);
+      const items=(await db.query(`SELECT id,created_at AS "createdAt",last_used_at AS "lastUsedAt",backed_up AS "backedUp",
+        attestation_policy_id AS "attestationPolicyId",attestation_format AS "attestationFormat",aaguid::text
+        FROM dge_identity.passkey_credentials WHERE account_id=$1 AND revoked_at IS NULL ORDER BY created_at,id`,[actor.id])).rows;
+      return {items};
+    }),
+    revokePasskey:(credentials,credentialId)=>transaction(async db=>{
+      const actor=await session(db,credentials,true,true,false,'multifactor');deny(uuid(credentialId));const revokedAt=now();
+      const existing=await db.query('SELECT id FROM dge_identity.passkey_credentials WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL',[credentialId,actor.id]);
+      deny(existing.rows.length);
+      await db.query('UPDATE dge_identity.sessions SET passkey_verified_at=NULL,passkey_credential_id=NULL WHERE account_id=$1 AND passkey_credential_id=$2',[actor.id,credentialId]);
+      const changed=await db.query('UPDATE dge_identity.passkey_credentials SET revoked_at=$3 WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL RETURNING id',[credentialId,actor.id,revokedAt]);
+      deny(changed.rows.length);
+      const devices=await db.query('UPDATE dge_identity.authorized_devices SET revoked_at=$2 WHERE passkey_credential_id=$1 AND revoked_at IS NULL RETURNING id',[credentialId,revokedAt]);
+      await securityEvent(db,actor.id,'passkey-revoked',revokedAt);
+      return {revoked:true,devicesRevoked:devices.rows.length};
+    }),
     restoreProviderIdentity:(credentials,{issuer,subject,authenticatedAt,authenticationMethods=[]})=>transaction(async db=>{
       const restoredAt=now(),actor=await session(db,credentials,true,false,true);
       deny(actor.authentication_method==='recovery','RECOVERY_SESSION_REQUIRED');
@@ -249,6 +267,8 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
     authorizeDevice:(credentials,keyThumbprint)=>transaction(async db=>{
       const actor=await session(db,credentials,true);deny(thumbprint(keyThumbprint));
       deny(actor.passkey_credential_id&&actor.passkey_verified_at&&date(actor.passkey_verified_at)>now().getTime()-300000,'PASSKEY_STEP_UP_REQUIRED');
+      const active=await db.query('SELECT id FROM dge_identity.passkey_credentials WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE',[actor.passkey_credential_id,actor.id]);
+      deny(active.rows.length,'PASSKEY_STEP_UP_REQUIRED');
       const id=randomUUID(),authorizedAt=now();
       await db.query(`INSERT INTO dge_identity.authorized_devices(id,account_id,passkey_credential_id,key_thumbprint,authorized_at) VALUES($1,$2,$3,$4,$5)
         ON CONFLICT(account_id,key_thumbprint) DO UPDATE SET passkey_credential_id=excluded.passkey_credential_id,authorized_at=excluded.authorized_at,revoked_at=NULL`,[id,actor.id,actor.passkey_credential_id,keyThumbprint,authorizedAt]);

@@ -253,8 +253,13 @@ test("passkey step-up is required before an encrypted-device thumbprint is autho
   assert.equal(response.status, 201);
   const devices = await (await call("/api/devices", { who })).json();
   assert.equal(devices.items.length, 1);
-  response = await call(`/api/devices/${devices.items[0].id}`, { who, method: "DELETE", body: {} });
+  const passkeys = await (await call("/api/passkeys", { who })).json();
+  assert.equal(passkeys.items.length, 1);
+  response = await call(`/api/passkeys/${passkeys.items[0].id}`, { who, method: "DELETE", body: {} });
   assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { revoked: true, devicesRevoked: 1 });
+  assert.equal((await (await call("/api/devices", { who })).json()).items.length, 0);
+  assert.equal((await call("/api/devices", { who, method: "POST", body: { keyThumbprint: "b".repeat(64) } })).status, 403);
 });
 test("workspace creation is protected at the HTTP boundary and does not accept caller identity fields", async () => {
   const who = await user("a");
