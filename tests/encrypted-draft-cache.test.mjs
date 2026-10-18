@@ -61,5 +61,5 @@ test('non-extractable key required and malformed envelopes fail closed',async()=
   {...sealed,extra:'plaintext'},{...sealed,ciphertext:'AAAA!'}])
   await assert.rejects(decryptLocalDraftBytes(key,envelope,scope,webcrypto));
  const storage=memory(),cache=createEncryptedDraftCache(storage,options(key));
- assert.equal((await cache.load({minimumRevision:-1})).state,'empty');
+ await assert.rejects(cache.load({minimumRevision:-1}),/revision/);
 });
