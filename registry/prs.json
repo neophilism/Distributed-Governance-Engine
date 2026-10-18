@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 19,
+  "roadmapVersion": 20,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-18T21:28:58Z",
+  "observedAt": "2026-10-18T21:55:04Z",
   "units": [
     {
       "id": "DCE-001",
@@ -81,7 +81,8 @@
       "operationalAcceptance": "unverified",
       "contributingPrs": [
         24,
-        30
+        30,
+        33
       ]
     },
     {
@@ -213,7 +214,10 @@
         27,
         28,
         29,
-        30
+        30,
+        34,
+        35,
+        36
       ]
     },
     {
