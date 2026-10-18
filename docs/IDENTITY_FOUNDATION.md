@@ -16,6 +16,8 @@ Migration 010 adds required evidence columns for the attestation policy ID, form
 
 A successful passkey assertion records a separate five-minute local step-up on the exact application session. It does not rewrite the provider-derived assurance level. An encrypted-device public-key thumbprint can be authorized only during that window and remains a separate record bound to the passkey credential. The service never accepts a private device key. Revocation is immediate in the authoritative device list; later private-workspace encryption work must consult that list and implement membership rekeying before it can claim content access control.
 
+Passkey inventory exposes only the account's own credential metadata and recorded attestation evidence, never public-key bytes. Revoking a credential requires a recent multifactor provider session, atomically marks the credential and every linked authorized device revoked, and clears step-up evidence referencing that credential from all account sessions. The credential cannot authenticate again and a recovery session cannot perform revocation. This containment does not distribute replacement content keys or prove that recipients erased earlier plaintext.
+
 ## Storage and rollout
 
 Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies ordered migrations 001–003, records their checksums and refuses edited history. The migration credential must remain separate from request credentials. Preserve applied files after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.

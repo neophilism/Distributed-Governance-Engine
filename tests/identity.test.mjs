@@ -154,6 +154,20 @@ test('passkey enrollment requires immutable explicit attestation policy evidence
   const unavailable=createIdentityStore({...options(),verifyPasskeyRegistration:undefined,verifyPasskeyAuthentication:undefined,passkeyAttestationPolicy:undefined});
   await assert.rejects(unavailable.beginPasskeyEnrollment(who),error=>error instanceof AccessError&&error.code==='PASSKEY_VERIFIER_UNAVAILABLE');
 });
+test('passkey revocation clears its step-up and every linked authorized device',async()=>{
+  const who=await account(),other=await account('other'),credentialId=randomBytes(32).toString('base64url');
+  const enrollment=await store.beginPasskeyEnrollment(who),enrolled=await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId});
+  const authentication=await store.beginPasskeyAuthentication(who);
+  await store.finishPasskeyAuthentication(who,authentication.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1});
+  await store.authorizeDevice(who,'c'.repeat(64));
+  assert.equal((await store.passkeys(who)).items.length,1);
+  await denied(store.revokePasskey(other,enrolled.credentialId));
+  assert.deepEqual(await store.revokePasskey(who,enrolled.credentialId),{revoked:true,devicesRevoked:1});
+  assert.equal((await store.passkeys(who)).items.length,0);assert.equal((await store.devices(who)).items.length,0);
+  await denied(store.authorizeDevice(who,'d'.repeat(64)));await denied(store.beginPasskeyAuthentication(who));
+  await denied(store.revokePasskey(who,enrolled.credentialId));
+  assert.ok((await db.query("SELECT 1 FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='passkey-revoked'",[who.accountId])).rows[0]);
+});
 test('recovery and primary-only sessions cannot enroll passkeys or authorize devices',async()=>{
   const primary={...await store.establishSession({issuer:'https://identity.example',subject:'primary-passkey',authenticatedAt:time,authenticationMethods:['pwd']}),origin};
   await denied(store.beginPasskeyEnrollment(primary));
