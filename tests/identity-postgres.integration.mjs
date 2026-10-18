@@ -84,6 +84,11 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     assert.equal((await store.devices(passkeyUser)).items.length,1);
     const rollback=await store.beginPasskeyAuthentication(passkeyUser);
     await assert.rejects(store.finishPasskeyAuthentication(passkeyUser,rollback.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1}),AccessError);
+    const stored=(await store.passkeys(passkeyUser)).items[0];
+    const race=await Promise.allSettled([store.revokePasskey(passkeyUser,stored.id),store.authorizeDevice(passkeyUser,'b'.repeat(64))]);
+    assert.equal(race[0].status,'fulfilled');
+    assert.equal((await store.devices(passkeyUser)).items.length,0);
+    await assert.rejects(store.authorizeDevice(passkeyUser,'c'.repeat(64)),AccessError);
   });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
     const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
