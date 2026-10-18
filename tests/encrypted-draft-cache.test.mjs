@@ -44,7 +44,7 @@ test('immutable editions, wrong document, oversized drafts and unavailable stora
  assert.throws(()=>createEncryptedDraftCache(storage,{...options(key),epoch:-1}));
  await assert.rejects(Promise.resolve().then(()=>cache.save(publicInputEdition(doc()))),/mutability/);
  await assert.rejects(Promise.resolve().then(()=>cache.save({...doc(),id:'other'})),/mutability/);
- const wrong=doc();wrong.content[0].inlines[0].text='a'.repeat(3000001);
+ const wrong=structuredClone(doc());wrong.content[0].inlines[0].text='a'.repeat(3000001);
  await assert.rejects(Promise.resolve().then(()=>cache.save(wrong)));
  storage.setItem=()=>{throw Error('quota');};
  assert.equal((await cache.save(doc())).state,'failed');
