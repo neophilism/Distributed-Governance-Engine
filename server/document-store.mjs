@@ -1,5 +1,6 @@
 import { digest } from "../src/integrity.mjs";
 import { createHash } from "node:crypto";
+import { createPublicSharedDraft } from "../editor/shared-legal-draft.mjs";
 import {
   legalDocumentDigest,
   validateLegalDocument,
@@ -285,6 +286,18 @@ export function createDocumentStore({
       );
       const stateBytes = parseCrdtState(crdtState);
       const doc = legal(document);
+      if (stateBytes) {
+        let shared;
+        try {
+          shared = createPublicSharedDraft({classification:"public",document:doc,
+            initialState:new Uint8Array(stateBytes)});
+          requireValue(
+            JSON.stringify(shared.snapshot().content) === JSON.stringify(doc.content),
+            "INVALID_CRDT_STATE",
+          );
+        } catch { throw new DocumentError("INVALID_CRDT_STATE"); }
+        finally { shared?.close(); }
+      }
       requireValue(
         doc.id === documentId &&
           doc.tenantId === tenantId &&
