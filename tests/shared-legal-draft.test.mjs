@@ -33,7 +33,7 @@ test('authenticated public Yjs states converge across concurrent edits, retries 
  left.close();right.close();latest.close();
 });
 test('read-only viewers receive deltas but cannot originate edits',()=>{
- const doc=draft(),writer=createPublicSharedDraft({document:doc});
+ const doc=draft(),writer=createPublicSharedDraft({classification:'public',document:doc});
  const viewer=createPublicSharedDraft({classification:'public',document:doc,initialState:writer.encodeState(),writable:false});
  assert.throws(()=>viewer.mutateLocal(d=>firstText(d).insert(0,'FORGED')),/read-only/);
  const viewerVector=viewer.stateVector();
@@ -42,7 +42,7 @@ test('read-only viewers receive deltas but cannot originate edits',()=>{
  assert.equal(textOf(writer),textOf(viewer));
 });
 test('invalid, oversized, untrusted or immutable collaboration inputs are refused without mutation',()=>{
- const doc=draft(),session=createPublicSharedDraft({document:doc});
+ const doc=draft(),session=createPublicSharedDraft({classification:'public',document:doc});
  const before=textOf(session);
  assert.throws(()=>createPublicSharedDraft({classification:'public',document:publicInputEdition(doc)}),/public collaboration/);
  assert.throws(()=>session.receive(new Uint8Array(65537)),/oversized/);
