@@ -26,7 +26,8 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
   const flags=(await runtime.query('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0];
   assert.deepEqual(flags,{rolsuper:false,rolbypassrls:false});
   const store=createIdentityStore({transaction:pgTransactions(runtime),sessionKey:randomBytes(32),stateKey:randomBytes(32),origin:'https://quill.example',
-    verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false}}),
+    passkeyAttestationPolicy:{id:'consumer-v1',allowedFormats:['none'],allowedAaguids:['00000000-0000-0000-0000-000000000000']},
+    verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false,attestationFormat:'none',aaguid:'00000000-0000-0000-0000-000000000000'}}),
     verifyPasskeyAuthentication:async({response})=>({verified:response?.accepted===true,userVerified:response?.userVerified===true,credentialId:response?.credentialId,newCounter:response?.newCounter})});
   const user=async()=>({...await store.establishSession({issuer:'https://test-provider.example',subject:randomUUID(),authenticatedAt:Date.now(),authenticationMethods:['pwd','mfa']}),origin:'https://quill.example'});
   const a=await user(),b=await user(),c=await user(),{tenantId}=await store.createTenant(a);let remainingOwner=a;

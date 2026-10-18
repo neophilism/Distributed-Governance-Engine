@@ -10,8 +10,10 @@ let db,store,time;
 const sessionKey=randomBytes(32),stateKey=randomBytes(32),origin='https://quill.example';
 const transaction=callback=>db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE dge_identity_runtime');return callback(tx);});
 const passkeyId=randomBytes(32).toString('base64url');
+const passkeyAttestationPolicy=Object.freeze({id:'consumer-v1',allowedFormats:['none'],allowedAaguids:['00000000-0000-0000-0000-000000000000']});
 const options=()=>({transaction,sessionKey,stateKey,origin,clock:()=>time,
-  verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false}}),
+  passkeyAttestationPolicy,
+  verifyPasskeyRegistration:async({response})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:['internal'],backedUp:false,attestationFormat:'none',aaguid:'00000000-0000-0000-0000-000000000000'}}),
   verifyPasskeyAuthentication:async({response})=>({verified:response?.accepted===true,userVerified:response?.userVerified===true,credentialId:response?.credentialId,newCounter:response?.newCounter})});
 before(async()=>{db=await PGlite.create();assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:true});assert.deepEqual(await applyIdentityMigrations(fn=>db.transaction(fn)),{applied:false});});
 after(async()=>{await db?.close();});
@@ -126,6 +128,8 @@ test('passkey challenges are session-bound, one-use, counter-checked and separat
   await denied(store.finishPasskeyEnrollment(other,enrollment.challenge,{accepted:true,credentialId:passkeyId}));
   const enrolled=await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId});
   assert.match(enrolled.credentialId,/^[a-f0-9-]{36}$/);await denied(store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId}));
+  assert.equal(enrolled.attestationPolicyId,'consumer-v1');
+  assert.deepEqual((await db.query('SELECT attestation_policy_id,attestation_format,aaguid::text FROM dge_identity.passkey_credentials')).rows,[{attestation_policy_id:'consumer-v1',attestation_format:'none',aaguid:'00000000-0000-0000-0000-000000000000'}]);
   await denied(store.authorizeDevice(who,'a'.repeat(64)));
   const authentication=await store.beginPasskeyAuthentication(who);
   assert.deepEqual(authentication.allowCredentials,[{id:passkeyId,transports:['internal']}]);
@@ -137,6 +141,18 @@ test('passkey challenges are session-bound, one-use, counter-checked and separat
   await store.revokeDevice(who,devices.items[0].id);assert.equal((await store.devices(who)).items.length,0);
   const rollback=await store.beginPasskeyAuthentication(who);
   await denied(store.finishPasskeyAuthentication(who,rollback.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1}));
+});
+test('passkey enrollment requires immutable explicit attestation policy evidence',async()=>{
+  const who=await account(),mutable={id:'strict-v1',allowedFormats:['none'],allowedAaguids:['00000000-0000-0000-0000-000000000000']};
+  const strict=createIdentityStore({...options(),passkeyAttestationPolicy:mutable,
+    verifyPasskeyRegistration:async({response,attestationPolicy})=>({verified:response?.accepted===true,credential:{id:response?.credentialId,publicKey:randomBytes(32).toString('base64url'),counter:0,transports:[],backedUp:false,attestationFormat:'packed',aaguid:attestationPolicy.allowedAaguids[0]}})});
+  mutable.allowedFormats.push('packed');
+  const challenge=await strict.beginPasskeyEnrollment(who);
+  await assert.rejects(strict.finishPasskeyEnrollment(who,challenge.challenge,{accepted:true,credentialId:randomBytes(32).toString('base64url')}),error=>error instanceof AccessError&&error.code==='PASSKEY_ATTESTATION_POLICY_REJECTED');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM dge_identity.passkey_credentials')).rows[0].n,0);
+  assert.throws(()=>createIdentityStore({...options(),passkeyAttestationPolicy:{id:'bad policy',allowedFormats:[],allowedAaguids:[]}}),/attestation policy/);
+  const unavailable=createIdentityStore({...options(),verifyPasskeyRegistration:undefined,verifyPasskeyAuthentication:undefined,passkeyAttestationPolicy:undefined});
+  await assert.rejects(unavailable.beginPasskeyEnrollment(who),error=>error instanceof AccessError&&error.code==='PASSKEY_VERIFIER_UNAVAILABLE');
 });
 test('recovery and primary-only sessions cannot enroll passkeys or authorize devices',async()=>{
   const primary={...await store.establishSession({issuer:'https://identity.example',subject:'primary-passkey',authenticatedAt:time,authenticationMethods:['pwd']}),origin};
