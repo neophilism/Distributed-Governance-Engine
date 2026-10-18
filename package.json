@@ -44,7 +44,8 @@
     "./private-document-store": "./server/private-document-store.mjs",
     "./private-document-http": "./server/private-document-http.mjs",
     "./private-update-ledger": "./server/private-update-ledger.mjs",
-    "./private-update-http": "./server/private-update-http.mjs"
+    "./private-update-http": "./server/private-update-http.mjs",
+    "./private-collaboration-hub": "./server/private-collaboration-hub.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
