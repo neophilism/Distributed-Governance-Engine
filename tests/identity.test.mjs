@@ -291,6 +291,12 @@ test('OIDC rejects ambiguous callbacks before consuming browser-bound login stat
   const good=await login.complete(base,pending.browser);
   assert.ok(await store.account(good.sessionToken));
 });
+test('OIDC accepts an exact configured authorization response issuer',async()=>{
+  const {login,start}=provider(),pending=await start();
+  const callback=origin+'/auth/callback?code=test-code&state='+pending.state+'&iss='+encodeURIComponent('https://provider.example');
+  const authenticated=await login.complete(callback,pending.browser);
+  assert.ok(await store.account(authenticated.sessionToken));
+});
 test('OIDC code flow validates signature, issuer, audience, nonce, state and PKCE before session creation',async()=>{
   const {login,start}=provider(),pending=await start();assert.equal(pending.authorization.searchParams.get('code_challenge_method'),'S256');
   const callback=origin+'/auth/callback?code=test-code&state='+pending.state;
