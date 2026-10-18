@@ -37,7 +37,8 @@
     "./discussion": "./src/discussion.mjs",
     "./discussion-store": "./server/discussion-store.mjs",
     "./private-crypto": "./src/private-crypto.mjs",
-    "./encrypted-draft-cache": "./editor/encrypted-draft-cache.mjs"
+    "./encrypted-draft-cache": "./editor/encrypted-draft-cache.mjs",
+    "./public-shared-draft": "./editor/shared-legal-draft.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
