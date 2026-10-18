@@ -15,7 +15,13 @@ const allowWrite=['owner','admin','editor'];
 function requireValue(ok,code,status){if(!ok)throw new PrivateDocumentError(code,status);}
 function strictObject(value,fields) {
  requireValue(value&&typeof value==='object'&&!Array.isArray(value)&&
-  Object.keys(value).sort().join(',')===fields.slice().sort().join(','),'INVALID_PRIVATE_FIELDS');
+  Object.getPrototypeOf(value)===Object.prototype&&
+  Object.getOwnPropertySymbols(value).length===0&&
+  Object.keys(value).sort().join(',')===fields.slice().sort().join(',')&&
+  Object.keys(value).every(key=>{
+   const descriptor=Object.getOwnPropertyDescriptor(value,key);
+   return descriptor?.enumerable===true&&Object.hasOwn(descriptor,'value');
+  }),'INVALID_PRIVATE_FIELDS');
 }
 function binary(value,min,max){
  requireValue(typeof value==='string'&&value.length>=1&&value.length<=Math.ceil(max*4/3)+8&&
@@ -160,10 +166,11 @@ export function createPrivateDocumentStore({
    validateIds(tenantId,documentId);
    return context(credentials,tenantId,false,async(db,actor)=>{
     const row=(await db.query(
-     'SELECT v.* FROM dge_private.documents d JOIN dge_private.versions v ON v.tenant_id=d.tenant_id AND v.document_id=d.id AND v.version=d.version WHERE d.tenant_id=$1 AND d.id=$2',
+     'SELECT v.*,d.current_digest,d.key_epoch AS pointer_epoch FROM dge_private.documents d JOIN dge_private.versions v ON v.tenant_id=d.tenant_id AND v.document_id=d.id AND v.version=d.version WHERE d.tenant_id=$1 AND d.id=$2',
      [tenantId,documentId]
     )).rows[0];
     requireValue(row,'PRIVATE_DOCUMENT_NOT_FOUND',404);
+    requireValue(row.current_digest===row.digest&&row.pointer_epoch===row.key_epoch,'PRIVATE_INTEGRITY_ERROR',503);
     await requireDevice(db,actor,documentId,row.key_epoch,'read');
     return snapshot(row,tenantId,documentId);
    });
@@ -186,6 +193,12 @@ export function createPrivateDocumentStore({
     )).rows[0];
     requireValue(row,'PRIVATE_DOCUMENT_NOT_FOUND',404);
     requireValue(row.version===payload.expectedVersion,'PRIVATE_VERSION_CONFLICT',409);
+    const current=(await db.query(
+     'SELECT * FROM dge_private.versions WHERE tenant_id=$1 AND document_id=$2 AND version=$3',
+     [tenantId,documentId,row.version]
+    )).rows[0];
+    requireValue(current&&current.digest===row.current_digest&&current.key_epoch===row.key_epoch,'PRIVATE_INTEGRITY_ERROR',503);
+    snapshot(current,tenantId,documentId);
     requireValue(row.version<maxVersions,'PRIVATE_VERSION_LIMIT_REACHED',429);
     if(parsed.keyEpoch!==row.key_epoch) {
      requireValue(parsed.keyEpoch===row.key_epoch+1&&
