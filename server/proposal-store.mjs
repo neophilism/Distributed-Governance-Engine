@@ -144,7 +144,9 @@ export function createProposalStore({
           } catch {
             throw new DocumentError("INVALID_TEXT_SELECTION_OR_REPLACEMENT");
           }
-          // The document row is locked until commit. Count and insert must share\n          // this serialization point or simultaneous writers can evade quotas.\n          const counts = (
+          // The document row is locked until commit. Count and insert must share
+          // this serialization point or simultaneous writers can evade quotas.
+          const counts = (
             await db.query(
               "SELECT count(*)::int AS total,count(*) FILTER(WHERE actor_id=$3)::int AS own FROM dge_proposals.proposals WHERE tenant_id=$1 AND document_id=$2",
               [tenantId, documentId, actor.accountId],
