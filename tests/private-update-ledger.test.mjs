@@ -6,6 +6,8 @@ import * as Y from 'yjs';
 import {createIdentityStore,applyIdentityMigrations} from '../server/identity-store.mjs';
 import {createPrivateDocumentStore} from '../server/private-document-store.mjs';
 import {createPrivateUpdateLedger} from '../server/private-update-ledger.mjs';
+import {createPrivateUpdateRoutes} from '../server/private-update-http.mjs';
+import {createAccountHandler} from '../server/account-http.mjs';
 import {sealPrivateYjsUpdate,openPrivateYjsUpdate} from '../src/private-collaboration-crypto.mjs';
 const origin='https://quill.example';
 let db,identity,owner,viewer,outsider,tenantId,documentId,deviceId,ledger,privateDocs;
@@ -141,4 +143,33 @@ test('budget failure leaves no half-written updates',async()=>{
  const limited=createPrivateUpdateLedger({identity,authorizeDevice:async()=>true,maxStoredBytes:1});
  await assert.rejects(limited.append(owner,tenantId,documentId,wire()),/PRIVATE_STORAGE_LIMIT_REACHED/);
  assert.equal((await db.query('SELECT count(*)::int AS n FROM dge_private.update_frames')).rows[0].n,0);
+});
+
+test('optional HTTP route rejects plaintext and wrong origin; authorized reader sees ciphertext only',async()=>{
+ const handler=createAccountHandler({store:identity,origin,login:{},
+  extensions:[createPrivateUpdateRoutes({ledger})]});
+ const path='/api/workspaces/'+tenantId+'/private-documents/'+documentId+'/updates';
+ const send=(method,path,who,body)=>handler(new Request(origin+path,{
+  method,
+  headers:{
+   ...(who?{cookie:'__Host-dge_session='+who.sessionToken,origin:who.origin,'x-dge-csrf':who.csrfToken}:{}),
+   ...(body?{'content-type':'application/json'}:{})
+  },
+  ...(body?{body:JSON.stringify(body)}:{})
+ }),{peerAddress:'127.0.0.1'});
+ const rejected=await send('POST',path,owner,{...wire(),plaintext:'SENSITIVE'});
+ assert.equal(rejected.status,400);
+ const accepted=await send('POST',path,owner,wire());
+ assert.equal(accepted.status,200);
+ assert.equal((await accepted.json()).frame.position,1);
+ const list=await send('GET',path+'?recipientDeviceId='+deviceId,viewer);
+ assert.equal(list.status,200);
+ const result=await list.json();
+ assert.equal(result.items.length,1);
+ assert.equal(typeof result.items[0].ciphertext,'string');
+ assert.equal(Object.hasOwn(result.items[0],'plaintext'),false);
+ const wrong=await send('POST',path,{...owner,origin:'https://evil.example'},wire(2));
+ assert.notEqual(wrong.status,200);
+ const unknownQuery=await send('GET',path+'?recipientDeviceId='+deviceId+'&other=forged',viewer);
+ assert.equal(unknownQuery.status,400);
 });
