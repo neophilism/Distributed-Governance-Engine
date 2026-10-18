@@ -27,7 +27,7 @@ function verifyUpdate(doc,update,base) {
  * authorization and persistence; no plaintext private-workspace fallback.
  */
 export async function mountPublicRealtimeEditor(element,initial,{
- classification,origin,readOnly=false,onChange=()=>{},onStatus=()=>{},onError=()=>{},
+ classification,origin,readOnly=false,onChange=()=>{},onStatus=()=>{},onError=()=>{},onAcknowledged=()=>{},
  WebSocketCtor=globalThis.WebSocket,timeoutMs=10000
 }={}) {
  const base=validateLegalDocument(initial);
@@ -115,6 +115,14 @@ export async function mountPublicRealtimeEditor(element,initial,{
   const receive=event=>{
    try {
     const data=asBytes(event.data);
+    if(data[0]===4) {
+     if(data.length!==5)throw Error('Invalid collaboration save acknowledgement');
+     const version=new DataView(data.buffer,data.byteOffset+1,4).getUint32(0);
+     if(version<1||version>1000000)throw Error('Invalid acknowledged version');
+     onAcknowledged(version);
+     onStatus('Live edit acknowledged and saved as public version '+version+'.');
+     return;
+    }
     if(data.length<3||data.length>3000001||![1,2].includes(data[0]))
      throw Error('Unexpected public collaboration frame');
     const update=data.slice(1);
