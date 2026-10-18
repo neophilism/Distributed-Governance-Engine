@@ -42,7 +42,8 @@
     "./realtime-editor": "./editor/realtime-editor.mjs",
     "./private-collaboration-crypto": "./src/private-collaboration-crypto.mjs",
     "./private-document-store": "./server/private-document-store.mjs",
-    "./private-document-http": "./server/private-document-http.mjs"
+    "./private-document-http": "./server/private-document-http.mjs",
+    "./private-update-ledger": "./server/private-update-ledger.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
