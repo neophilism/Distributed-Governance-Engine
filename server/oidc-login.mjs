@@ -22,6 +22,8 @@ export function createOIDCLogin({store,configuration,redirectUri}) {
       return {authorizationUrl:url.href,cookie:`__Host-dge_login=${browserToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`};
     },
     async complete(callbackUri,browserToken) {
+      // Bound inputs before URL parsing or touching the one-use login state.
+      if(typeof callbackUri!=='string'||callbackUri.length>8192||typeof browserToken!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(browserToken))throw new AccessError();
       const callback=new URL(callbackUri);
       if(callback.origin!==redirect.origin||callback.pathname!==redirect.pathname||callback.username||callback.password||callback.hash||callback.searchParams.getAll('state').length!==1||callback.searchParams.getAll('code').length!==1||!callback.searchParams.get('code')||callback.searchParams.has('error')||callback.searchParams.has('error_description')||callback.searchParams.has('error_uri'))throw new AccessError();
       const state=callback.searchParams.get('state');

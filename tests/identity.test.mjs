@@ -283,6 +283,7 @@ test('OIDC rejects ambiguous callbacks before consuming browser-bound login stat
     base+'&code=second-code',
     base+'&error=access_denied',
     base+'&error_description=injected',
+    base+'&unused='+ 'x'.repeat(9000),
     origin+'/auth/callback?state='+pending.state
   ])await denied(login.complete(invalid,pending.browser));
   const good=await login.complete(base,pending.browser);
