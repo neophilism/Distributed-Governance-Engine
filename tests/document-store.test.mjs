@@ -11,6 +11,7 @@ import {
   PUBLIC_DISCLOSURE,
 } from "../server/document-store.mjs";
 import { createDocumentRoutes } from "../server/document-http.mjs";
+import { createPublicSharedDraft } from "../editor/shared-legal-draft.mjs";
 import { createAccountHandler } from "../server/account-http.mjs";
 import {
   createLegalDocument,
@@ -382,4 +383,34 @@ test('stored source corruption fails closed instead of presenting a mismatched d
   const initial=await documents.create(owner,tenantId,command(doc()));
   await db.query('UPDATE dge_documents.versions SET digest=$1 WHERE document_id=$2',['0'.repeat(64),initial.document.id]);
   await assert.rejects(documents.publicRead(initial.document.id,{version:1}),/DOCUMENT_INTEGRITY_ERROR/);
+});
+
+test("Yjs snapshots persist atomically with public document version and are recovered under tenant authorization",async()=>{
+ const initial=await documents.create(owner,tenantId,command(doc()));
+ assert.equal(await documents.collaborationState(owner,tenantId,initial.document.id),null);
+ const changed=edit(initial.document,"Durable collaborative text.");
+ const shared=createPublicSharedDraft({classification:"public",document:changed});
+ const crdtState=Buffer.from(shared.encodeState()).toString("base64url");
+ shared.close();
+ const request={document:changed,commandId:randomUUID(),expectedVersion:1,crdtState};
+ const saved=await documents.save(owner,tenantId,changed.id,request);
+ assert.equal(saved.version,2);
+ const otherStore=createDocumentStore({identity,transaction});
+ const restored=await otherStore.collaborationState(reader,tenantId,changed.id);
+ assert.equal(restored.version,2);
+ assert.equal(restored.state,crdtState);
+ assert.deepEqual((await otherStore.read(reader,tenantId,changed.id)).document,changed);
+ assert.deepEqual(await documents.save(owner,tenantId,changed.id,request),saved);
+ await assert.rejects(otherStore.collaborationState(outsider,tenantId,changed.id));
+ await assert.rejects(transaction(tx=>tx.query(
+  "UPDATE dge_documents.crdt_states SET state=decode('00','hex')"
+ )),/permission denied/);
+ await assert.rejects(transaction(tx=>tx.query(
+  "DELETE FROM dge_documents.crdt_states"
+ )),/permission denied/);
+ const tampered=edit(changed,"Different words");
+ await assert.rejects(documents.save(owner,tenantId,changed.id,{
+  document:tampered,commandId:randomUUID(),expectedVersion:2,crdtState
+ }),/INVALID_CRDT_STATE/);
+ assert.equal((await documents.read(owner,tenantId,changed.id)).version,2);
 });

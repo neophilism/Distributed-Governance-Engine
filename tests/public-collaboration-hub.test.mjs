@@ -44,7 +44,7 @@ async function fixture() {
   const tenantId=randomUUID(),documentId=randomUUID();
   let document=structuredClone(createLegalDocument({id:documentId,tenantId,title:'Public project'}));
   document.content[0].inlines=[{kind:'text',text:'Seed'}];
-  let version=1,saveCount=0,visibility='public';
+  let version=1,saveCount=0,visibility='public',persistedCrdt=null;
   const roles=new Map([[sessionA,'editor'],[sessionB,'viewer'],[sessionC,'editor']]);
   const check=(credentials,write=false)=>{
    if(credentials.origin!==origin||credentials.csrfToken!==csrf||!roles.has(credentials.sessionToken))throw Error('ACCESS_DENIED');
@@ -57,12 +57,19 @@ async function fixture() {
     if(tenant!==tenantId||doc!==documentId)throw Error('WRONG_DOCUMENT');
     return {document:structuredClone(document),viewerRole:role,version,visibility};
    },
+   async collaborationState(credentials,tenant,doc) {
+    check(credentials);
+    if(tenant!==tenantId||doc!==documentId)throw Error('WRONG_DOCUMENT');
+    return persistedCrdt;
+   },
    async save(credentials,tenant,doc,command) {
     check(credentials,true);
     if(tenant!==tenantId||doc!==documentId||version!==command.expectedVersion)throw Error('VERSION_CONFLICT');
     if(command.document.revision!==document.revision+1)throw Error('REVISION_NOT_INCREASED');
     if(command.document.mode!=='collaboration'||command.document.lifecycle!=='draft')throw Error('SOURCE_FROZEN');
+    if(typeof command.crdtState!=='string'||!command.crdtState.length)throw Error('CRDT_STATE_REQUIRED');
     document=structuredClone(command.document);version++;saveCount++;
+    persistedCrdt={version,state:command.crdtState};
     return {document:structuredClone(document),version,visibility};
    }
   };
@@ -109,7 +116,17 @@ test('public TLS WebSocket room commits one authorized Yjs edit and broadcasts t
   replica.receive(relayed.slice(1));
   assert.match(replica.snapshot().content[0].inlines[0].text,/Added/);
   assert.equal(fx.getDocument().revision,1);
+  const ack=await until(()=>author.frames.find(frame=>frame[0]===4));
+  assert.equal(new DataView(ack.buffer,ack.byteOffset+1,4).getUint32(0),2);
   writer.close();replica.close();
+  author.ws.close();viewer.ws.close();
+  await until(()=>fx.hub.stats().rooms===0);
+  const reopened=await fx.connect(sessionB);
+  const initial=await until(()=>reopened.frames.find(frame=>frame[0]===1));
+  const restored=createPublicSharedDraft({document:fx.getDocument(),classification:'public',initialState:initial.slice(1)});
+  assert.match(restored.snapshot().content[0].inlines[0].text,/Added Seed/);
+  assert.doesNotMatch(restored.snapshot().content[0].inlines[0].text,/Seed.*Seed/);
+  restored.close();
  }finally{await fx.close();}
 });
 test('writer demotion and unrelated origin block collaboration messages and upgrades',{timeout:15000},async()=>{

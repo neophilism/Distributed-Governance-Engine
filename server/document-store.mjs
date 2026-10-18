@@ -1,4 +1,6 @@
 import { digest } from "../src/integrity.mjs";
+import { createHash } from "node:crypto";
+import { createPublicSharedDraft } from "../editor/shared-legal-draft.mjs";
 import {
   legalDocumentDigest,
   validateLegalDocument,
@@ -20,6 +22,17 @@ const uuid = (value) =>
   typeof value === "string" &&
   /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 const editableRoles = ["owner", "admin", "editor"];
+const MAX_CRDT_STATE_BYTES = 3000000;
+function parseCrdtState(value) {
+ if(value===undefined)return null;
+ if(typeof value!=='string'||!value.length||value.length>4000000||
+    !/^[A-Za-z0-9_-]+$/.test(value))throw new DocumentError("INVALID_CRDT_STATE");
+ const bytes=Buffer.from(value,'base64url');
+ if(bytes.length<1||bytes.length>MAX_CRDT_STATE_BYTES||
+    bytes.toString('base64url')!==value)throw new DocumentError("INVALID_CRDT_STATE");
+ return bytes;
+}
+const stateDigest=bytes=>createHash('sha256').update('dge-public-yjs-v13-v1\0').update(bytes).digest('hex');
 const snapshot = row => {
   const document=validateLegalDocument(row.document??row.current);
   requireValue(legalDocumentDigest(document)===row.digest,'DOCUMENT_INTEGRITY_ERROR',503);
@@ -241,18 +254,50 @@ export function createDocumentStore({
         return { ...snapshot(row), viewerRole: actor.role };
       });
     },
+    async collaborationState(credentials, tenantId, documentId) {
+      requireValue(uuid(documentId), "INVALID_DOCUMENT_ID");
+      return context(credentials, tenantId, false, async (db) => {
+        const row = (
+          await db.query(
+            "SELECT c.version,c.state,c.sha256 FROM dge_documents.crdt_states c JOIN dge_documents.documents d ON d.tenant_id=c.tenant_id AND d.id=c.document_id AND d.version=c.version WHERE c.tenant_id=$1 AND c.document_id=$2",
+            [tenantId, documentId],
+          )
+        ).rows[0];
+        if (!row) return null;
+        const bytes = Buffer.from(row.state);
+        requireValue(
+          bytes.length > 0 && bytes.length <= MAX_CRDT_STATE_BYTES &&
+            stateDigest(bytes) === row.sha256,
+          "CRDT_INTEGRITY_ERROR", 503,
+        );
+        return {version: row.version, state: bytes.toString("base64url")};
+      });
+    },
     async save(
       credentials,
       tenantId,
       documentId,
-      { document, commandId, expectedVersion },
+      { document, commandId, expectedVersion, crdtState },
     ) {
       command(commandId);
       requireValue(
         uuid(documentId) && version(expectedVersion),
         "INVALID_VERSION",
       );
+      const stateBytes = parseCrdtState(crdtState);
       const doc = legal(document);
+      if (stateBytes) {
+        let shared;
+        try {
+          shared = createPublicSharedDraft({classification:"public",document:doc,
+            initialState:new Uint8Array(stateBytes)});
+          requireValue(
+            JSON.stringify(shared.snapshot().content) === JSON.stringify(doc.content),
+            "INVALID_CRDT_STATE",
+          );
+        } catch { throw new DocumentError("INVALID_CRDT_STATE"); }
+        finally { shared?.close(); }
+      }
       requireValue(
         doc.id === documentId &&
           doc.tenantId === tenantId &&
@@ -264,6 +309,7 @@ export function createDocumentStore({
         action: "save",
         document: doc,
         expectedVersion,
+        ...(crdtState !== undefined ? { crdtState } : {}),
       });
       return context(credentials, tenantId, true, async (db, actor) => {
         const replay = await prior(db, tenantId, commandId, requestDigest);
@@ -292,12 +338,26 @@ export function createDocumentStore({
           "UPDATE dge_documents.documents SET current=$3,version=version+1,digest=$4 WHERE tenant_id=$1 AND id=$2",
           [tenantId, documentId, doc, legalDocumentDigest(doc)],
         );
-        return append(db, actor, doc, {
+        const saved = await append(db, actor, doc, {
           commandId,
           requestDigest,
           nextVersion: row.version + 1,
           previousDigest: row.digest,
         });
+        if (stateBytes) {
+          requireValue(
+            (await db.query(
+              "UPDATE dge_documents.usage SET stored_bytes=stored_bytes+$2 WHERE tenant_id=$1 AND stored_bytes+$2<=$3 RETURNING stored_bytes",
+              [tenantId, stateBytes.length, maxStoredBytes],
+            )).rows.length,
+            "STORAGE_LIMIT_REACHED", 429,
+          );
+          await db.query(
+            "INSERT INTO dge_documents.crdt_states(tenant_id,document_id,version,format,state,sha256,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+            [tenantId, documentId, row.version + 1, "yjs-v13-public-v1", stateBytes, stateDigest(stateBytes), now()],
+          );
+        }
+        return saved;
       });
     },
     async freezeForInput(

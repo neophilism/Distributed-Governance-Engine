@@ -6,7 +6,7 @@ import {createPublicSharedDraft} from '../editor/shared-legal-draft.mjs';
 const UUID='[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}';
 const PATH=new RegExp('^/ws/public/('+UUID+')/('+UUID+')$');
 const CSRF=/^[A-Za-z0-9_-]{43}$/;
-const FRAME_SNAPSHOT=1,FRAME_UPDATE=2,FRAME_STATE_VECTOR=3;
+const FRAME_SNAPSHOT=1,FRAME_UPDATE=2,FRAME_STATE_VECTOR=3,FRAME_ACK=4;
 const writable=new Set(['owner','admin','editor']);
 
 function credentialCookies(header,origin) {
@@ -38,6 +38,7 @@ function drop(connection,code=1008) {
  */
 export function attachPublicCollaborationHub({server,origin,documents,maxRooms=32,maxClientsPerRoom=12,maxPending=12}={}) {
  if(!server?.on||!server?.off||typeof documents?.read!=='function'||typeof documents?.save!=='function'||
+    typeof documents?.collaborationState!=='function'||
     new URL(origin).protocol!=='https:'||new URL(origin).origin!==origin||
     ![maxRooms,maxClientsPerRoom,maxPending].every(n=>Number.isSafeInteger(n)&&n>=1&&n<=100))
   throw Error('Invalid public collaboration hub configuration');
@@ -78,14 +79,15 @@ export function attachPublicCollaborationHub({server,origin,documents,maxRooms=3
    throw Error('Writing to public collaboration requires editor role');
   const sample=createPublicSharedDraft({classification:'public',document:room.document,
    initialState:room.shared.encodeState()});
-  let candidate;
-  try{candidate=sample.receive(payload);}
+  let candidate,candidateState;
+  try{candidate=sample.receive(payload);candidateState=sample.encodeState();}
   finally{sample.close();}
-  const changed=JSON.stringify(candidate.content)!==JSON.stringify(room.document.content);
-  if(changed) {
+  const advanced=!Buffer.from(candidateState).equals(Buffer.from(room.shared.encodeState()));
+  if(advanced) {
    const document={...structuredClone(candidate),revision:room.document.revision+1};
    const result=await documents.save(client.credentials,room.tenantId,room.documentId,{
-    document,expectedVersion:room.version,commandId:randomUUID()
+    document,expectedVersion:room.version,commandId:randomUUID(),
+    crdtState:Buffer.from(candidateState).toString('base64url')
    });
    if(result.visibility!=='public'||result.version!==room.version+1)
     throw Error('Collaboration save was not committed');
@@ -93,6 +95,11 @@ export function attachPublicCollaborationHub({server,origin,documents,maxRooms=3
    room.document=result.document;
   }
   room.shared.receive(payload);
+  // Version confirmation is sent only after the durable transaction committed.
+  const acknowledgement=Buffer.allocUnsafe(4);
+  acknowledgement.writeUInt32BE(room.version,0);
+  if(client.ws.readyState===WebSocket.OPEN)
+   client.ws.send(binary(FRAME_ACK,acknowledgement),{binary:true});
   // Every receiver is reauthorized before accepting an update; removed members
   // never receive subsequent plaintext public content via a stale socket.
   for(const receiver of [...room.clients]) {
@@ -122,7 +129,16 @@ export function attachPublicCollaborationHub({server,origin,documents,maxRooms=3
    room=rooms.get(key);
    if(!room) {
     if(rooms.size>=maxRooms)return refuse(socket,503);
-    const shared=createPublicSharedDraft({document:snapshot.document,classification:'public'});
+    const persisted=await documents.collaborationState(credentials,tenantId,documentId);
+    if(persisted && (persisted.version!==snapshot.version||typeof persisted.state!=='string'))
+     return refuse(socket);
+    const shared=createPublicSharedDraft({
+     document:snapshot.document,classification:'public',
+     ...(persisted?{initialState:new Uint8Array(Buffer.from(persisted.state,'base64url'))}:{})
+    });
+    if(JSON.stringify(shared.snapshot().content)!==JSON.stringify(snapshot.document.content)) {
+     shared.close();return refuse(socket);
+    }
     room={key,tenantId,documentId,shared,document:snapshot.document,version:snapshot.version,
       clients:new Set(),pending:0,chain:Promise.resolve(),closed:false};
     rooms.set(key,room);
