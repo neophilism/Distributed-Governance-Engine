@@ -276,6 +276,18 @@ function provider(scenario={}) {
   const login=createOIDCLogin({store,configuration:config,redirectUri:origin+'/auth/callback'});
   return {login,async start(){const result=await login.start();authorization=new URL(result.authorizationUrl);return {state:authorization.searchParams.get('state'),browser:result.cookie.match(/^__Host-dge_login=([^;]+)/)[1],authorization};}};
 }
+test('OIDC rejects ambiguous callbacks before consuming browser-bound login state',async()=>{
+  const {login,start}=provider(),pending=await start();
+  const base=origin+'/auth/callback?code=test-code&state='+pending.state;
+  for(const invalid of [
+    base+'&code=second-code',
+    base+'&error=access_denied',
+    base+'&error_description=injected',
+    origin+'/auth/callback?state='+pending.state
+  ])await denied(login.complete(invalid,pending.browser));
+  const good=await login.complete(base,pending.browser);
+  assert.ok(await store.account(good.sessionToken));
+});
 test('OIDC code flow validates signature, issuer, audience, nonce, state and PKCE before session creation',async()=>{
   const {login,start}=provider(),pending=await start();assert.equal(pending.authorization.searchParams.get('code_challenge_method'),'S256');
   const callback=origin+'/auth/callback?code=test-code&state='+pending.state;
