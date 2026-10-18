@@ -45,6 +45,11 @@ beforeEach(async () => {
     stateKey,
     origin,
     clock: () => clock,
+    passkeyAttestationPolicy: {
+      id: "consumer-v1",
+      allowedFormats: ["none"],
+      allowedAaguids: ["00000000-0000-0000-0000-000000000000"],
+    },
     verifyPasskeyRegistration: async ({ response }) => ({
       verified: response?.accepted === true,
       credential: {
@@ -53,6 +58,8 @@ beforeEach(async () => {
         counter: 0,
         transports: ["internal"],
         backedUp: false,
+        attestationFormat: "none",
+        aaguid: "00000000-0000-0000-0000-000000000000",
       },
     }),
     verifyPasskeyAuthentication: async ({ response }) => ({

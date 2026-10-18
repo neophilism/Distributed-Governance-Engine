@@ -10,8 +10,11 @@ const token=()=>randomBytes(32).toString('base64url');
 const isToken=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value);
 const role=value=>['owner','admin','editor','participant','viewer'].includes(value);
 const date=value=>new Date(value).getTime();
+const policyId=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value);
+const attestationFormat=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value);
+const aaguid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql','010-passkey-attestation-policy.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
@@ -54,12 +57,22 @@ export function pgTransactions(pool) {
 }
 
 /** Trusted server service, not a browser module or an HTTP identity assertion API. */
-export function createIdentityStore({transaction,sessionKey,stateKey,origin,clock=Date.now,sessionSeconds=28800,maxOwnedWorkspaces=10,maxPendingInvitations=500,maxSessions=20,verifyPasskeyRegistration,verifyPasskeyAuthentication}) {
+export function createIdentityStore({transaction,sessionKey,stateKey,origin,clock=Date.now,sessionSeconds=28800,maxOwnedWorkspaces=10,maxPendingInvitations=500,maxSessions=20,verifyPasskeyRegistration,verifyPasskeyAuthentication,passkeyAttestationPolicy}) {
   if(typeof transaction!=='function'||!Buffer.isBuffer(sessionKey)||sessionKey.length!==32||!Buffer.isBuffer(stateKey)||stateKey.length!==32||sessionKey.equals(stateKey))throw Error('Independent 32-byte identity keys required');
   const site=new URL(origin);
   if(site.protocol!=='https:'||site.origin!==origin)throw Error('An exact HTTPS origin is required');
   if(!Number.isSafeInteger(sessionSeconds)||sessionSeconds<60||sessionSeconds>86400)throw Error('Session duration must be 60–86400 seconds');
   for(const n of [maxOwnedWorkspaces,maxPendingInvitations,maxSessions])if(!Number.isSafeInteger(n)||n<1||n>10000)throw Error('Invalid identity resource limit');
+  if(verifyPasskeyRegistration!==undefined&&typeof verifyPasskeyRegistration!=='function')throw Error('Invalid passkey registration verifier');
+  if(verifyPasskeyAuthentication!==undefined&&typeof verifyPasskeyAuthentication!=='function')throw Error('Invalid passkey authentication verifier');
+  let attestationPolicy=null;
+  if(verifyPasskeyRegistration!==undefined){
+    const formats=passkeyAttestationPolicy?.allowedFormats,aaguids=passkeyAttestationPolicy?.allowedAaguids;
+    if(!policyId(passkeyAttestationPolicy?.id)||!Array.isArray(formats)||formats.length<1||formats.length>16||new Set(formats).size!==formats.length||!formats.every(attestationFormat)||
+      !Array.isArray(aaguids)||aaguids.length<1||aaguids.length>256||new Set(aaguids).size!==aaguids.length||!aaguids.every(aaguid))
+      throw Error('Explicit passkey attestation policy required');
+    attestationPolicy=Object.freeze({id:passkeyAttestationPolicy.id,allowedFormats:Object.freeze([...formats]),allowedAaguids:Object.freeze([...aaguids])});
+  }
   // Copy configuration so a caller cannot mutate keys after initialization.
   sessionKey=Buffer.from(sessionKey);stateKey=Buffer.from(stateKey);
   const digest=(purpose,value)=>createHmac('sha256',sessionKey).update(purpose+'\0'+value).digest('hex');
@@ -168,20 +181,22 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       return {accountId,sessionToken,csrfToken,expiresAt:expiresAt.toISOString(),authenticationMethod:'recovery',recoveryRestricted:true};
     }),
     beginPasskeyEnrollment:credentials=>transaction(async db=>{
+      deny(typeof verifyPasskeyRegistration==='function'&&attestationPolicy,'PASSKEY_VERIFIER_UNAVAILABLE');
       const {actor,challenge,expiresAt}=await createPasskeyChallenge(db,credentials,'enrollment',{recent:true,requiredAssurance:'multifactor'});
       const excludeCredentials=(await db.query('SELECT credential_id AS id,transports FROM dge_identity.passkey_credentials WHERE account_id=$1 AND revoked_at IS NULL ORDER BY created_at,id',[actor.id])).rows;
-      return {challenge,expiresAt:expiresAt.toISOString(),rpId:site.hostname,user:{id:actor.id},excludeCredentials};
+      return {challenge,expiresAt:expiresAt.toISOString(),rpId:site.hostname,user:{id:actor.id},excludeCredentials,attestationPolicyId:attestationPolicy.id};
     }),
     finishPasskeyEnrollment:async(credentials,challenge,response)=>{
       deny(typeof verifyPasskeyRegistration==='function','PASSKEY_VERIFIER_UNAVAILABLE');
       const consumed=await transaction(async db=>{const {actor,usedAt}=await consumePasskeyChallenge(db,credentials,challenge,'enrollment',{recent:true,requiredAssurance:'multifactor'});return {accountId:actor.id,usedAt};});
-      const result=await verifyPasskeyRegistration({response,expectedChallenge:challenge,expectedOrigin:origin,expectedRpId:site.hostname,accountId:consumed.accountId});
+      const result=await verifyPasskeyRegistration({response,expectedChallenge:challenge,expectedOrigin:origin,expectedRpId:site.hostname,accountId:consumed.accountId,attestationPolicy});
       const credential=result?.credential;
-      deny(result?.verified===true&&credential&&base64url(credential.id)&&credential.id.length<=2048&&base64url(credential.publicKey)&&Number.isSafeInteger(credential.counter)&&credential.counter>=0&&transports(credential.transports??[])&&typeof credential.backedUp==='boolean','PASSKEY_VERIFICATION_FAILED');
+      deny(result?.verified===true&&credential&&base64url(credential.id)&&credential.id.length<=2048&&base64url(credential.publicKey)&&Number.isSafeInteger(credential.counter)&&credential.counter>=0&&transports(credential.transports??[])&&typeof credential.backedUp==='boolean'&&
+        attestationFormat(credential.attestationFormat)&&attestationPolicy.allowedFormats.includes(credential.attestationFormat)&&aaguid(credential.aaguid)&&attestationPolicy.allowedAaguids.includes(credential.aaguid),'PASSKEY_ATTESTATION_POLICY_REJECTED');
       return transaction(async db=>{const actor=await session(db,credentials,true,true,false,'multifactor');deny(actor.id===consumed.accountId);const id=randomUUID();
-        try{await db.query('INSERT INTO dge_identity.passkey_credentials(id,account_id,credential_id,public_key,sign_count,transports,backed_up,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,actor.id,credential.id,credential.publicKey,credential.counter,credential.transports??[],credential.backedUp,consumed.usedAt]);}
+        try{await db.query('INSERT INTO dge_identity.passkey_credentials(id,account_id,credential_id,public_key,sign_count,transports,backed_up,created_at,attestation_policy_id,attestation_format,aaguid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[id,actor.id,credential.id,credential.publicKey,credential.counter,credential.transports??[],credential.backedUp,consumed.usedAt,attestationPolicy.id,credential.attestationFormat,credential.aaguid]);}
         catch(error){if(error?.code==='23505')throw new AccessError('PASSKEY_ALREADY_REGISTERED');throw error;}
-        await securityEvent(db,actor.id,'passkey-enrolled',consumed.usedAt);return {credentialId:id,createdAt:consumed.usedAt.toISOString()};});
+        await securityEvent(db,actor.id,'passkey-enrolled',consumed.usedAt);return {credentialId:id,createdAt:consumed.usedAt.toISOString(),attestationPolicyId:attestationPolicy.id};});
     },
     beginPasskeyAuthentication:credentials=>transaction(async db=>{
       const {actor,challenge,expiresAt}=await createPasskeyChallenge(db,credentials,'authentication');
