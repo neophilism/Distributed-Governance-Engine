@@ -17,6 +17,7 @@ import { createProposalStore } from "./proposal-store.mjs";
 import { createProposalRoutes, proposalBodyLimit } from "./proposal-http.mjs";
 import { createAccountHandler } from "./account-http.mjs";
 import { createEngineApplication, createEngineServer } from "./application.mjs";
+import { attachPublicCollaborationHub } from "./public-collaboration-hub.mjs";
 
 const required = (name) => {
   const value = process.env[name];
@@ -60,6 +61,10 @@ try {
     clientId: required("OIDC_CLIENT_ID"),
     clientSecret: required("OIDC_CLIENT_SECRET"),
   });
+  const documents = createDocumentStore({
+    identity: store,
+    transaction: pgTransactions(pool),
+  });
   const redirectUri = origin + "/auth/callback";
   const login = createOIDCLogin({ store, configuration, redirectUri }),
     accounts = createAccountHandler({
@@ -79,12 +84,7 @@ try {
             transaction: pgTransactions(pool),
           }),
         }),
-        createDocumentRoutes({
-          documents: createDocumentStore({
-            identity: store,
-            transaction: pgTransactions(pool),
-          }),
-        }),
+        createDocumentRoutes({ documents }),
       ],
     });
   const application = createEngineApplication({
@@ -106,6 +106,7 @@ try {
         discussionBodyLimit(path),
       ),
   });
+  const collaboration = attachPublicCollaborationHub({server, origin, documents});
   const port = Number(process.env.PORT ?? 8443);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw Error("Invalid port");
@@ -115,6 +116,7 @@ try {
     ),
   );
   const stop = () => {
+    collaboration.close();
     server.close(() => {
       pool.end().finally(() => process.exit());
     });
