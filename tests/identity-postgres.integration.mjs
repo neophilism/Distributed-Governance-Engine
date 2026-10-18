@@ -90,6 +90,19 @@ test('PostgreSQL enforces row permissions and serializes competing membership an
     assert.equal((await store.devices(passkeyUser)).items.length,0);
     await assert.rejects(store.authorizeDevice(passkeyUser,'c'.repeat(64)),AccessError);
   });
+  await t.test('provider restoration atomically replaces identity and revokes the restricted session',async()=>{
+    const recoveryUser=await user(),credentialId=randomBytes(32).toString('base64url');
+    const enrollment=await store.beginPasskeyEnrollment(recoveryUser);
+    await store.finishPasskeyEnrollment(recoveryUser,enrollment.challenge,{accepted:true,credentialId});
+    const codes=await store.issueRecoveryCodes(recoveryUser),recovered={...await store.recoverAccount(recoveryUser.accountId,codes.recoveryCodes[0]),origin:'https://quill.example'};
+    const authentication=await store.beginPasskeyAuthentication(recovered);
+    await store.finishPasskeyAuthentication(recovered,authentication.challenge,{accepted:true,userVerified:true,credentialId,newCounter:1});
+    const restored=await store.restoreProviderIdentity(recovered,{issuer:'https://replacement-provider.example',subject:randomUUID(),authenticatedAt:Date.now(),authenticationMethods:['pwd','mfa']});
+    assert.equal(restored.accountId,recoveryUser.accountId);
+    await assert.rejects(store.account(recovered.sessionToken),AccessError);
+    assert.equal((await store.account(restored.sessionToken)).accountId,recoveryUser.accountId);
+    assert.equal((await owner.query("SELECT count(*)::int AS n FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='provider-identity-restored'",[recoveryUser.accountId])).rows[0].n,1);
+  });
   await t.test('parallel public-document saves reject lost edits and duplicate commands commit once',async()=>{
     const documents=createDocumentStore({identity:store,transaction:pgTransactions(runtime)});
     const document=createLegalDocument({id:randomUUID(),tenantId,title:'Parallel document'});

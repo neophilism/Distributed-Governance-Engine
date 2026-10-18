@@ -4,7 +4,7 @@
   "roadmapVersion": 18,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-17T23:46:00Z",
+  "observedAt": "2026-10-18T00:49:05Z",
   "units": [
     {
       "id": "DCE-001",
@@ -55,7 +55,8 @@
         12,
         13,
         19,
-        20
+        20,
+        21
       ]
     },
     {
@@ -1157,6 +1158,21 @@
       "headSha": "4f37c1fc6331007527cdb80603eaec0f355cf895",
       "baseRef": "main",
       "mergeCommitSha": "95e88be244be3c796733cedeab8d5d617001788e"
+    },
+    {
+      "id": 4905226162,
+      "number": 21,
+      "title": "DCE-002: Require recovery and passkey proof for provider restoration",
+      "state": "open",
+      "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/21",
+      "createdAt": "2026-10-18T00:43:59Z",
+      "updatedAt": "2026-10-18T00:49:05Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "draft": true,
+      "headSha": "71baf4552b48f5cd27c227e5983aab9d294655c0",
+      "baseRef": "main",
+      "mergeCommitSha": "b7a4ddf5f341d0e3ddd75cd3b02aab5738a23164"
     }
   ]
 }

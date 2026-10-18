@@ -14,7 +14,7 @@ const policyId=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.tes
 const attestationFormat=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value);
 const aaguid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 export const identityMigration=()=>readFile(new URL('../migrations/001-identity.sql',import.meta.url),'utf8');
-const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql','010-passkey-attestation-policy.sql','011-passkey-revocation.sql'].map(async(name,index)=>{
+const migrationRecords=()=>Promise.all(['001-identity.sql','002-session-authentication-time.sql','003-account-directory.sql','004-public-documents.sql','005-text-proposals.sql','006-structured-points.sql','007-account-recovery.sql','008-session-assurance.sql','009-passkey-device-assurance.sql','010-passkey-attestation-policy.sql','011-passkey-revocation.sql','012-provider-restoration.sql'].map(async(name,index)=>{
     const sql=await readFile(new URL('../migrations/'+name,import.meta.url),'utf8');
     return {version:index+1,sql,checksum:createHash('sha256').update(sql).digest('hex')};
   }));
@@ -110,14 +110,14 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
   }
   const manage=actor=>deny(['owner','admin'].includes(actor.role));
   const securityEvent=(db,accountId,kind,occurredAt=now())=>db.query('INSERT INTO dge_identity.account_security_events(id,account_id,kind,occurred_at) VALUES($1,$2,$3,$4)',[randomUUID(),accountId,kind,occurredAt]);
-  async function createPasskeyChallenge(db,credentials,purpose,{recent=false,requiredAssurance='primary'}={}) {
-    const actor=await session(db,credentials,true,recent,false,requiredAssurance),challenge=token(),createdAt=now(),expiresAt=new Date(createdAt.getTime()+300000);
+  async function createPasskeyChallenge(db,credentials,purpose,{recent=false,requiredAssurance='primary',allowRecoveryWrite=false}={}) {
+    const actor=await session(db,credentials,true,recent,allowRecoveryWrite,requiredAssurance),challenge=token(),createdAt=now(),expiresAt=new Date(createdAt.getTime()+300000);
     await db.query('DELETE FROM dge_identity.passkey_challenges WHERE account_id=$1 AND purpose=$2',[actor.id,purpose]);
     await db.query('INSERT INTO dge_identity.passkey_challenges(challenge_digest,account_id,session_digest,purpose,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[digest('passkey-challenge',challenge),actor.id,actor.token_digest,purpose,createdAt,expiresAt]);
     return {actor,challenge,expiresAt};
   }
-  async function consumePasskeyChallenge(db,credentials,challenge,purpose,{recent=false,requiredAssurance='primary'}={}) {
-    deny(isToken(challenge));const actor=await session(db,credentials,true,recent,false,requiredAssurance),usedAt=now();
+  async function consumePasskeyChallenge(db,credentials,challenge,purpose,{recent=false,requiredAssurance='primary',allowRecoveryWrite=false}={}) {
+    deny(isToken(challenge));const actor=await session(db,credentials,true,recent,allowRecoveryWrite,requiredAssurance),usedAt=now();
     const row=(await db.query(`UPDATE dge_identity.passkey_challenges SET consumed_at=$4 WHERE challenge_digest=$1 AND account_id=$2 AND session_digest=$3
       AND purpose=$5 AND consumed_at IS NULL AND expires_at>$4 RETURNING challenge_digest`,[digest('passkey-challenge',challenge),actor.id,actor.token_digest,usedAt,purpose])).rows[0];
     deny(row,'PASSKEY_CHALLENGE_INVALID');return {actor,usedAt};
@@ -199,21 +199,21 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
         await securityEvent(db,actor.id,'passkey-enrolled',consumed.usedAt);return {credentialId:id,createdAt:consumed.usedAt.toISOString(),attestationPolicyId:attestationPolicy.id};});
     },
     beginPasskeyAuthentication:credentials=>transaction(async db=>{
-      const {actor,challenge,expiresAt}=await createPasskeyChallenge(db,credentials,'authentication');
+      const {actor,challenge,expiresAt}=await createPasskeyChallenge(db,credentials,'authentication',{allowRecoveryWrite:true});
       const allowCredentials=(await db.query('SELECT credential_id AS id,transports FROM dge_identity.passkey_credentials WHERE account_id=$1 AND revoked_at IS NULL ORDER BY created_at,id',[actor.id])).rows;
       deny(allowCredentials.length,'PASSKEY_NOT_ENROLLED');
       return {challenge,expiresAt:expiresAt.toISOString(),rpId:site.hostname,allowCredentials};
     }),
     finishPasskeyAuthentication:async(credentials,challenge,response)=>{
       deny(typeof verifyPasskeyAuthentication==='function','PASSKEY_VERIFIER_UNAVAILABLE');
-      const consumed=await transaction(async db=>{const {actor,usedAt}=await consumePasskeyChallenge(db,credentials,challenge,'authentication');
+      const consumed=await transaction(async db=>{const {actor,usedAt}=await consumePasskeyChallenge(db,credentials,challenge,'authentication',{allowRecoveryWrite:true});
         const records=(await db.query('SELECT id,credential_id AS "credentialId",public_key AS "publicKey",sign_count::text AS "counter",transports,backed_up AS "backedUp" FROM dge_identity.passkey_credentials WHERE account_id=$1 AND revoked_at IS NULL ORDER BY created_at,id',[actor.id])).rows.map(item=>({...item,counter:Number(item.counter)}));return {accountId:actor.id,usedAt,records};});
       const records=consumed.records;
       deny(records.length,'PASSKEY_NOT_ENROLLED');
       const result=await verifyPasskeyAuthentication({response,credentials:records,expectedChallenge:challenge,expectedOrigin:origin,expectedRpId:site.hostname,accountId:consumed.accountId});
       deny(result?.verified===true&&result.userVerified===true&&base64url(result.credentialId)&&result.credentialId.length<=2048&&Number.isSafeInteger(result.newCounter)&&result.newCounter>=0,'PASSKEY_VERIFICATION_FAILED');
       const verified=records.find(item=>item.credentialId===result.credentialId);deny(verified,'PASSKEY_VERIFICATION_FAILED');
-      return transaction(async db=>{const actor=await session(db,credentials,true);deny(actor.id===consumed.accountId);
+      return transaction(async db=>{const actor=await session(db,credentials,true,false,true);deny(actor.id===consumed.accountId);
         const credential=(await db.query('SELECT id,sign_count::text AS counter FROM dge_identity.passkey_credentials WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL FOR UPDATE',[verified.id,actor.id])).rows[0];deny(credential,'PASSKEY_VERIFICATION_FAILED');const current=Number(credential.counter);
         deny((current===0&&result.newCounter===0)||result.newCounter>current,'PASSKEY_COUNTER_ROLLBACK');
         await db.query('UPDATE dge_identity.passkey_credentials SET sign_count=$2,last_used_at=$3 WHERE id=$1',[credential.id,result.newCounter,consumed.usedAt]);
@@ -237,6 +237,27 @@ export function createIdentityStore({transaction,sessionKey,stateKey,origin,cloc
       const devices=await db.query('UPDATE dge_identity.authorized_devices SET revoked_at=$2 WHERE passkey_credential_id=$1 AND revoked_at IS NULL RETURNING id',[credentialId,revokedAt]);
       await securityEvent(db,actor.id,'passkey-revoked',revokedAt);
       return {revoked:true,devicesRevoked:devices.rows.length};
+    }),
+    restoreProviderIdentity:(credentials,{issuer,subject,authenticatedAt,authenticationMethods=[]})=>transaction(async db=>{
+      const restoredAt=now(),actor=await session(db,credentials,true,false,true);
+      deny(actor.authentication_method==='recovery','RECOVERY_SESSION_REQUIRED');
+      deny(actor.passkey_credential_id&&actor.passkey_verified_at&&date(actor.passkey_verified_at)>restoredAt.getTime()-300000,'PASSKEY_STEP_UP_REQUIRED');
+      deny(Array.isArray(authenticationMethods)&&authenticationMethods.length<=16&&authenticationMethods.every(value=>typeof value==='string'&&value.length>0&&value.length<=64&&!value.includes('\0')));
+      const authenticationAssurance=authenticationMethods.includes('hwk')?'hardware-bound':authenticationMethods.includes('mfa')?'multifactor':'primary';
+      deny(Number.isSafeInteger(authenticatedAt)&&authenticatedAt>=restoredAt.getTime()-300000&&authenticatedAt<=restoredAt.getTime()+30000);
+      const uri=new URL(issuer);
+      deny(uri.protocol==='https:'&&!uri.username&&!uri.password&&!uri.hash&&!uri.search&&issuer.length<=2048);
+      deny(typeof subject==='string'&&subject.length>0&&subject.length<=255&&!subject.includes('\0'));
+      let account;
+      try{
+        account=(await db.query("UPDATE dge_identity.accounts SET issuer=$2,subject=$3,auth_epoch=auth_epoch+1 WHERE id=$1 AND status='active' RETURNING id,auth_epoch",[actor.id,issuer,subject])).rows[0];
+      }catch(error){if(error?.code==='23505')throw new AccessError('IDENTITY_ALREADY_LINKED');throw error;}
+      deny(account);
+      await db.query('UPDATE dge_identity.sessions SET revoked_at=$2 WHERE account_id=$1 AND revoked_at IS NULL',[actor.id,restoredAt]);
+      const sessionToken=token(),csrfToken=token(),expiresAt=new Date(restoredAt.getTime()+sessionSeconds*1000);
+      await db.query("INSERT INTO dge_identity.sessions(token_digest,account_id,auth_epoch,csrf_digest,created_at,expires_at,authenticated_at,authentication_method,authentication_assurance) VALUES($1,$2,$3,$4,$5,$6,$7,'oidc',$8)",[digest('session',sessionToken),actor.id,account.auth_epoch,digest('csrf',csrfToken),restoredAt,expiresAt,new Date(authenticatedAt),authenticationAssurance]);
+      await securityEvent(db,actor.id,'provider-identity-restored',restoredAt);
+      return {accountId:actor.id,sessionToken,csrfToken,expiresAt:expiresAt.toISOString(),authenticationMethod:'oidc',authenticationAssurance};
     }),
     devices:credentials=>transaction(async db=>{
       const actor=await session(db,credentials);
