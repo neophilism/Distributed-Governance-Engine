@@ -4,7 +4,7 @@
   "roadmapVersion": 18,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-18T00:47:50Z",
+  "observedAt": "2026-10-18T00:49:05Z",
   "units": [
     {
       "id": "DCE-001",
@@ -31,9 +31,7 @@
       "id": "DCE-002",
       "title": "Identity, tenants and membership lifecycle",
       "origin": "original",
-      "prs": [
-        21
-      ],
+      "prs": [],
       "dependsOn": [
         "DCE-001"
       ],
@@ -57,7 +55,8 @@
         12,
         13,
         19,
-        20
+        20,
+        21
       ]
     },
     {
@@ -1167,11 +1166,11 @@
       "state": "open",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/21",
       "createdAt": "2026-10-18T00:43:59Z",
-      "updatedAt": "2026-10-18T00:43:59Z",
+      "updatedAt": "2026-10-18T00:49:05Z",
       "mergedAt": null,
       "closedAt": null,
       "draft": true,
-      "headSha": "e19f69cfa4ab634546c2a8c79a2549708f72369e",
+      "headSha": "71baf4552b48f5cd27c227e5983aab9d294655c0",
       "baseRef": "main",
       "mergeCommitSha": "b7a4ddf5f341d0e3ddd75cd3b02aab5738a23164"
     }
