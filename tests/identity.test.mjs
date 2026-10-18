@@ -161,13 +161,16 @@ test('recovery and primary-only sessions cannot enroll passkeys or authorize dev
   await denied(store.beginPasskeyEnrollment(recovery));await denied(store.beginPasskeyAuthentication(recovery));await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
 });
 test('provider restoration requires the restricted session and its already-enrolled passkey',async()=>{
-  const who=await account('provider-loss'),enrollment=await store.beginPasskeyEnrollment(who);
+  const who=await account('provider-loss'),claimed=await account('claimed','https://replacement.example'),enrollment=await store.beginPasskeyEnrollment(who);
+  await denied(store.restoreProviderIdentity(who,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time}));
   await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId});
   const codes=await store.issueRecoveryCodes(who),recovery={...await store.recoverAccount(who.accountId,codes.recoveryCodes[0]),origin};
   await denied(store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time}));
   const authentication=await store.beginPasskeyAuthentication(recovery);
   await store.finishPasskeyAuthentication(recovery,authentication.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1});
   await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
+  await assert.rejects(store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'claimed',authenticatedAt:time}),error=>error instanceof AccessError&&error.code==='IDENTITY_ALREADY_LINKED');
+  assert.equal((await store.sessionInfo(recovery.sessionToken)).recoveryRestricted,true);assert.ok(await store.account(claimed.sessionToken));
   const restored=await store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time,authenticationMethods:['pwd','mfa']});
   assert.equal(restored.accountId,who.accountId);assert.equal(restored.authenticationMethod,'oidc');assert.equal(restored.authenticationAssurance,'multifactor');
   await denied(store.account(recovery.sessionToken));assert.equal((await store.account(restored.sessionToken)).accountId,who.accountId);
