@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,migrateLegacyRevision,migrateLegalDocumentV1,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText} from '../src/legal-schema.mjs';
+import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,migrateLegacyRevision,migrateLegalDocumentV1,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText,previewLegalNumbering,applyLegalNumberingRules,indentLegalSection,outdentLegalSection} from '../src/legal-schema.mjs';
 const paragraph=(id,text)=>({kind:'paragraph',id,inlines:[{kind:'text',text}]});
 const fixture=()=>({...structuredClone(createLegalDocument({id:'doc',tenantId:'org',title:'A reporting act'})),content:[{kind:'section',id:'s1',title:'Reporting',children:[paragraph('p1','The agency shall report annually.'),{kind:'section',id:'s1a',title:'Publication',children:[paragraph('p2','Reports shall be public.')]}]},{kind:'section',id:'s2',title:'Effective date',children:[{kind:'paragraph',id:'p3',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'s1a'}]}]}]});
 test('valid legal data is detached, deeply frozen and identified independently from numbering',()=>{const input=fixture(),doc=validateLegalDocument(input);assert(Object.isFrozen(doc.content[0].children));input.metadata.title='changed';assert.equal(doc.metadata.title,'A reporting act');});
@@ -71,4 +71,48 @@ test('unsafe child accessors are rejected without executing them',()=>{
 });
 test('numbering limits reject a hierarchy that its configured renderer cannot label',()=>{
  const d=fixture();let node=d.content[0];for(let i=0;i<6;i++){const child={kind:'section',id:'n'+i,title:'Nested',children:[paragraph('np'+i,'Text')]};node.children=[child];node=child;}assert.throws(()=>validateLegalDocument(d),/numbering depth/);
+});
+
+test('jurisdiction profiles and reserved start positions preview without changing document',()=>{
+ const d=fixture();
+ const rules=[{parentId:'doc',startAt:27,reserved:[28]},{parentId:'s1',startAt:2,reserved:[3]}];
+ const preview=previewLegalNumbering(d,rules);
+ assert.deepEqual(preview.after.map(x=>x.label),['SEC. 27.','(b)','SEC. 29.']);
+ assert.equal(preview.changed.length,3);
+ assert.deepEqual(preview.affectedReferences,[{sourceId:'p3',targetId:'s1a',from:'(a)',to:'(b)'}]);
+ assert.equal(d.metadata.numberingRules,undefined);
+ const updated=applyLegalNumberingRules(d,rules);
+ assert.equal(updated.revision,d.revision+1);
+ assert.equal(updated.content[0].id,d.content[0].id);
+ assert.deepEqual(legalOutline(updated),preview.after);
+ const corporate=structuredClone(d);corporate.metadata.numberingProfile='corporate-v1';
+ assert.deepEqual(legalOutline(corporate).map(x=>x.label),['(I)','(A)','(II)']);
+});
+test('malformed numbering rules reject rather than silently changing ordinals',()=>{
+ const d=fixture();
+ for(const rules of [
+  [{parentId:'missing'}],
+  [{parentId:'p1'}],
+  [{parentId:'doc',startAt:0}],
+  [{parentId:'doc',reserved:[3,2]}],
+  [{parentId:'doc',reserved:[2,2]}],
+  [{parentId:'doc',startAt:1000001}],
+  [{parentId:'doc'},{parentId:'doc'}]
+ ])assert.throws(()=>previewLegalNumbering(d,rules));
+ const locked=publicInputEdition(d);
+ assert.throws(()=>applyLegalNumberingRules(locked,[{parentId:'doc'}]),/draft/);
+ const limited=structuredClone(d);limited.metadata.numberingProfile='corporate-v1';
+ assert.throws(()=>previewLegalNumbering(limited,[{parentId:'doc',startAt:4000}]),/Roman/);
+});
+test('section indent and outdent preserve IDs and reject unsuitable moves',()=>{
+ const d=fixture();
+ assert.throws(()=>indentLegalSection(d,'s1'));
+ const nested=indentLegalSection(d,'s2');
+ assert.equal(nested.content[0].children.at(-1).id,'s2');
+ assert.deepEqual(legalOutline(nested).map(x=>x.label),['SEC. 1.','(a)','(b)']);
+ const flat=outdentLegalSection(nested,'s2');
+ assert.equal(flat.content[1].id,'s2');
+ assert.equal(flat.content[1].children[0].inlines[1].targetId,'s1a');
+ assert.throws(()=>outdentLegalSection(d,'s1'));
+ assert.throws(()=>indentLegalSection(publicInputEdition(d),'s2'));
 });
