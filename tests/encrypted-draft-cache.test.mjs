@@ -27,7 +27,7 @@ test('tampering, wrong key, tenant, document, workspace or membership epoch cann
  const storage=memory(),cache=createEncryptedDraftCache(storage,options(key));await cache.save(doc());
  assert.equal((await createEncryptedDraftCache(storage,options(other)).load()).state,'corrupt');
  const recordKey=[...storage.map.keys()][0],record=JSON.parse(storage.getItem(recordKey));
- const changed={...record,ciphertext:'A'+record.ciphertext.slice(1)};
+ const changed={...record,ciphertext:(record.ciphertext[0]==='A'?'B':'A')+record.ciphertext.slice(1)};
  storage.setItem(recordKey,JSON.stringify(changed));
  assert.equal((await cache.load()).state,'corrupt');
  storage.setItem(recordKey,JSON.stringify(record));
