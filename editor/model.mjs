@@ -64,7 +64,7 @@ export function editorToLegal(doc,base,{increment=false}={}) {
  return validateLegalDocument({...structuredClone(base),revision:base.revision+(increment?1:0),content});
 }
 export const canDirectlyEdit=document=>document.mode==='collaboration'&&document.lifecycle==='draft';
-function identityPlugin(baseDocument) {
+export function identityPlugin(baseDocument) {
  return new Plugin({appendTransaction(transactions,_old,state){
   if(!transactions.some(t=>t.docChanged))return null;
   const seen=new Set(),tr=state.tr;

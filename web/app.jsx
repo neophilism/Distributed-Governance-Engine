@@ -27,6 +27,7 @@ import { DocumentLibrary } from "./document-library.jsx";
 import { ProposalPanel } from "./proposal-panel.jsx";
 import { createAccountAPI } from "./account-api.mjs";
 import { createDocumentSession } from "../editor/document-session.mjs";
+import { mountPublicRealtimeEditor } from "../editor/realtime-editor.mjs";
 
 const brands = {
   civic: {
@@ -272,7 +273,10 @@ function App() {
     [freezeConfirmed, setFreezeConfirmed] = useState(false),
     [history, setHistory] = useState(null),
     [historyCursor, setHistoryCursor] = useState(null),
-    [historyBusy, setHistoryBusy] = useState(false);
+    [historyBusy, setHistoryBusy] = useState(false),
+    [live, setLive] = useState(false),
+    [liveReady, setLiveReady] = useState(false),
+    [liveStatus, setLiveStatus] = useState("Not connected");
   const host = useRef(null),
     controller = useRef(null),
     saveEnabled = useRef(false),
@@ -282,7 +286,7 @@ function App() {
     freezeCommand = useRef(null);
   const brand = brands[product],
     editable =
-      canDirectlyEdit(doc) && mayEdit(record) && !freezing && !freezeUncertain;
+      canDirectlyEdit(doc) && mayEdit(record) && !freezing && !freezeUncertain && (!live || liveReady);
   useEffect(() => {
     document.title = brand.name + " — " + doc.metadata.title;
     document.documentElement.style.setProperty("--accent", brand.color);
@@ -298,6 +302,40 @@ function App() {
       });
     } catch {
       cache.current = null;
+    }
+    if (live && record && accountEnabled && !record.historicalVersion &&
+        canDirectlyEdit(doc)) {
+      let active = true, mounted = null;
+      session.current = null;
+      setPersistence(null);
+      setLiveReady(false);
+      mountPublicRealtimeEditor(host.current, doc, {
+        classification: "public",
+        origin: window.location.origin,
+        readOnly: !mayEdit(record),
+        onChange(next) { if (active) setDoc(next); },
+        onStatus(message) {
+          if (!active) return;
+          setLiveStatus(message);
+          setLiveReady(message.includes("connected"));
+          setStatus(message);
+        },
+        onError(message) { if (active) setStatus(message); },
+      }).then((editor) => {
+        if (!active) editor.destroy();
+        else { mounted = editor; controller.current = editor; }
+      }).catch(() => {
+        if (active) {
+          setLiveReady(false);
+          setLiveStatus("Connection failed. Exit live mode to reopen the saved version.");
+          setStatus("Live collaboration could not connect. No private or plaintext fallback was used.");
+        }
+      });
+      return () => {
+        active = false;
+        mounted?.destroy();
+        controller.current = null;
+      };
     }
     if (record && mayEdit(record) && canDirectlyEdit(doc)) {
       session.current = createDocumentSession({
@@ -347,7 +385,7 @@ function App() {
       editor.destroy();
       controller.current = null;
     };
-  }, [generation, product]);
+  }, [generation, product, live]);
   useEffect(() => {
     const warn = (event) => {
       if (session.current?.getState().dirty) {
@@ -389,6 +427,9 @@ function App() {
     return () => abort.abort();
   }, []);
   function canLeave() {
+    if (live) return window.confirm(
+      "This live session has no durable WebSocket acknowledgement. Download a local copy if necessary before leaving. Leave the live editor?",
+    );
     return (
       !session.current?.getState().dirty ||
       window.confirm(
@@ -398,6 +439,8 @@ function App() {
   }
   function openSaved(snapshot) {
     if (!canLeave()) return false;
+    setLive(false);
+    setLiveReady(false);
     setDoc(snapshot.document);
     setRecord(snapshot);
     setGeneration((x) => x + 1);
@@ -412,12 +455,33 @@ function App() {
   }
   function restart(nextProduct = product) {
     if (!canLeave()) return;
+    setLive(false);
+    setLiveReady(false);
     setProduct(nextProduct);
     setDoc(sample(nextProduct));
     setRecord(null);
     setHistory(null);
     setGeneration((x) => x + 1);
     setStatus("A new sample working copy is open.");
+  }
+  async function toggleLive() {
+    if (!record || record.historicalVersion || doc.mode !== "collaboration" ||
+        doc.lifecycle !== "draft") return;
+    if (live) {
+      if (!canLeave()) return;
+      try {
+        const fresh = await api("/api/workspaces/" + doc.tenantId + "/documents/" + doc.id);
+        openSaved(fresh);
+      } catch { setStatus("Could not reload saved document. Download the current text before exiting."); }
+      return;
+    }
+    try {
+      if (session.current) await session.current.save();
+      const fresh = await api("/api/workspaces/" + doc.tenantId + "/documents/" + doc.id);
+      if (openSaved(fresh)) setLive(true);
+    } catch {
+      setStatus("Live collaboration requires a current authenticated saved document. Local unsaved text was preserved.");
+    }
   }
   function run(command) {
     if (!controller.current?.command(command))
@@ -650,11 +714,18 @@ function App() {
           {record && (
             <div className="save-controls" data-tour="save">
               <span role="status">
-                {persistence
+                {live ? liveStatus : persistence
                   ? saveMessage(persistence)
                   : "Version " + storedVersion + " · Read only"}
               </span>
-              {persistence && (
+              {accountEnabled && !record.historicalVersion &&
+                record.document.mode === "collaboration" &&
+                record.document.lifecycle === "draft" && (
+                <button aria-pressed={live} onClick={toggleLive}>
+                  {live ? "Exit live editing" : "Join live editing"}
+                </button>
+              )}
+              {!live && persistence && (
                 <button
                   disabled={
                     freezing ||
@@ -733,7 +804,7 @@ function App() {
             />
             <button disabled={!editable || !title.trim()}>Add section</button>
           </form>
-          {accountEnabled && (
+          {accountEnabled && !live && (
             <ProposalPanel
               document={doc}
               controller={controller}
@@ -791,7 +862,7 @@ function App() {
           )}
           {record &&
             ["owner", "admin"].includes(record.viewerRole) &&
-            canDirectlyEdit(doc) && (
+            canDirectlyEdit(doc) && !live && (
               <section>
                 <h3>Open for public input</h3>
                 <p>
