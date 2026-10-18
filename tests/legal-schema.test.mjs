@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,migrateLegacyRevision,migrateLegalDocumentV1,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText,previewLegalNumbering,applyLegalNumberingRules,indentLegalSection,outdentLegalSection} from '../src/legal-schema.mjs';
+import {validateLegalDocument,createLegalDocument,legalDocumentDigest,documentIssues,legalReferenceAnalysis,previewLegalNodeMove,migrateLegacyRevision,migrateLegalDocumentV1,moveLegalNode,finalizeLegalDocument,publicInputEdition,legalOutline,legalPlainText,previewLegalNumbering,applyLegalNumberingRules,indentLegalSection,outdentLegalSection} from '../src/legal-schema.mjs';
 const paragraph=(id,text)=>({kind:'paragraph',id,inlines:[{kind:'text',text}]});
 const fixture=()=>({...structuredClone(createLegalDocument({id:'doc',tenantId:'org',title:'A reporting act'})),content:[{kind:'section',id:'s1',title:'Reporting',children:[paragraph('p1','The agency shall report annually.'),{kind:'section',id:'s1a',title:'Publication',children:[paragraph('p2','Reports shall be public.')]}]},{kind:'section',id:'s2',title:'Effective date',children:[{kind:'paragraph',id:'p3',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'s1a'}]}]}]});
 test('valid legal data is detached, deeply frozen and identified independently from numbering',()=>{const input=fixture(),doc=validateLegalDocument(input);assert(Object.isFrozen(doc.content[0].children));input.metadata.title='changed';assert.equal(doc.metadata.title,'A reporting act');});
@@ -115,4 +115,37 @@ test('section indent and outdent preserve IDs and reject unsuitable moves',()=>{
  assert.equal(flat.content[1].children[0].inlines[1].targetId,'s1a');
  assert.throws(()=>outdentLegalSection(d,'s1'));
  assert.throws(()=>indentLegalSection(publicInputEdition(d),'s2'));
+});
+
+test('defined terms report duplicate, empty and cyclic definitions before finalization',()=>{
+ const d=fixture();
+ d.content.push(
+  {kind:'definition',id:'def-a',term:'Agency',inlines:[{kind:'text',text:'See '},{kind:'reference',targetId:'def-b'}]},
+  {kind:'definition',id:'def-b',term:'agency',inlines:[{kind:'reference',targetId:'def-a'}]},
+  {kind:'definition',id:'def-c',term:'Unrelated',inlines:[{kind:'reference',targetId:'def-b'}]},
+  {kind:'definition',id:'def-d',term:' ',inlines:[{kind:'text',text:'TBD'}]}
+ );
+ const analysis=legalReferenceAnalysis(d);
+ assert.equal(analysis.definitionCount,4);
+ assert.deepEqual(analysis.issues.filter(i=>i.code==='CYCLIC_DEFINITION').map(i=>i.sourceId),['def-a','def-b']);
+ assert.deepEqual(analysis.issues.filter(i=>i.code==='AMBIGUOUS_DEFINED_TERM').map(i=>i.sourceId),['def-b']);
+ assert.deepEqual(analysis.issues.filter(i=>i.code==='EMPTY_DEFINED_TERM').map(i=>i.sourceId),['def-d']);
+ assert.equal(analysis.backlinks.get('def-b').length,2);
+ assert.throws(()=>finalizeLegalDocument(d),/definitions/);
+ assert.throws(()=>publicInputEdition(d),/reference issues/);
+});
+test('moving a section previews renamed targets and all affected semantic references',()=>{
+ const d=fixture(),before=JSON.stringify(d);
+ const result=previewLegalNodeMove(d,'s1a','doc',2);
+ assert.deepEqual(result.renamed,[{id:'s1a',from:'(a)',to:'SEC. 3.'}]);
+ assert.deepEqual(result.affectedReferences,[{sourceId:'p3',targetId:'s1a',from:'(a)',to:'SEC. 3.'}]);
+ assert.deepEqual(result.issues,[]);
+ assert.equal(JSON.stringify(d),before);
+ assert.throws(()=>previewLegalNodeMove(d,'s1','s1a',0),/descendant/);
+});
+test('unresolved reference diagnostics preserve stable target IDs through relocation',()=>{
+ const d=fixture();d.content[1].children[0].inlines[1].targetId='deleted-section';
+ const analysis=legalReferenceAnalysis(d);
+ assert.deepEqual(analysis.issues,[{code:'UNRESOLVED_REFERENCE',sourceId:'p3',targetId:'deleted-section'}]);
+ assert.throws(()=>finalizeLegalDocument(d),/Unresolved/);
 });
