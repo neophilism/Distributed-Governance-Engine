@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "neophilism/Distributed-Governance-Engine",
-  "roadmapVersion": 18,
+  "roadmapVersion": 19,
   "planVerified": true,
   "plannedPrCount": 39,
-  "observedAt": "2026-10-18T00:49:05Z",
+  "observedAt": "2026-10-18T21:28:58Z",
   "units": [
     {
       "id": "DCE-001",
@@ -77,8 +77,12 @@
         "Service-compromise canaries, malicious-device enrollment, key-change warnings, removed-member access, backup restore and protocol interoperability tests. Publish precise threat exclusions."
       ],
       "specification": "docs/prs/DCE-003.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        24,
+        30
+      ]
     },
     {
       "id": "DCE-004",
@@ -152,8 +156,11 @@
         "Nested numbering goldens including z/aa, Roman limits, pasted lists, reserved numbers, deletion and undo."
       ],
       "specification": "docs/prs/DCE-006.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        22
+      ]
     },
     {
       "id": "DCE-007",
@@ -173,8 +180,11 @@
         "Move/delete/merge references, cyclic definitions, citation import and export consistency tests."
       ],
       "specification": "docs/prs/DCE-007.md",
-      "implementationStatus": "planned",
-      "operationalAcceptance": "unverified"
+      "implementationStatus": "partial",
+      "operationalAcceptance": "unverified",
+      "contributingPrs": [
+        25
+      ]
     },
     {
       "id": "DCE-008",
@@ -198,7 +208,12 @@
       "implementationStatus": "partial",
       "operationalAcceptance": "unverified",
       "contributingPrs": [
-        8
+        8,
+        26,
+        27,
+        28,
+        29,
+        30
       ]
     },
     {
@@ -1148,31 +1163,31 @@
       "id": 4904909221,
       "number": 18,
       "title": "DCE-005: Verify keyboard focus and narrow reflow",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/18",
       "createdAt": "2026-10-17T23:43:17Z",
-      "updatedAt": "2026-10-17T23:43:17Z",
-      "mergedAt": null,
-      "closedAt": null,
-      "draft": true,
-      "headSha": "4f37c1fc6331007527cdb80603eaec0f355cf895",
+      "updatedAt": "2026-10-17T23:45:44Z",
+      "mergedAt": "2026-10-17T23:45:44Z",
+      "closedAt": "2026-10-17T23:45:44Z",
+      "draft": false,
+      "headSha": "eac93e47ab2c554da1d4dadb03295015f322221f",
       "baseRef": "main",
-      "mergeCommitSha": "95e88be244be3c796733cedeab8d5d617001788e"
+      "mergeCommitSha": "82200441ad11ee5fe75e72df88e123c7afb56dfa"
     },
     {
       "id": 4905226162,
       "number": 21,
       "title": "DCE-002: Require recovery and passkey proof for provider restoration",
-      "state": "open",
+      "state": "closed",
       "url": "https://github.com/neophilism/Distributed-Governance-Engine/pull/21",
       "createdAt": "2026-10-18T00:43:59Z",
-      "updatedAt": "2026-10-18T00:49:05Z",
-      "mergedAt": null,
-      "closedAt": null,
-      "draft": true,
-      "headSha": "71baf4552b48f5cd27c227e5983aab9d294655c0",
+      "updatedAt": "2026-10-18T00:52:25Z",
+      "mergedAt": "2026-10-18T00:52:25Z",
+      "closedAt": "2026-10-18T00:52:25Z",
+      "draft": false,
+      "headSha": "7f9812b9081cc09868030ae1330c1f98053fffd1",
       "baseRef": "main",
-      "mergeCommitSha": "b7a4ddf5f341d0e3ddd75cd3b02aab5738a23164"
+      "mergeCommitSha": "1a259cb882e5f0d66abe1b3cd76f5d68bc08be18"
     }
   ]
 }
