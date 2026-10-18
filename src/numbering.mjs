@@ -1,5 +1,10 @@
 import {invariant} from './integrity-values.mjs';
 export const FEDERAL_HIERARCHY=Object.freeze(['section','lower-alpha','decimal','upper-alpha','lower-roman','upper-roman']);
+export const NUMBERING_PROFILES=Object.freeze({
+ 'us-federal-v1':FEDERAL_HIERARCHY,
+ 'decimal-v1':Object.freeze(Array(16).fill('decimal')),
+ 'corporate-v1':Object.freeze(['upper-roman','upper-alpha','decimal','lower-alpha','lower-roman','upper-roman'])
+});
 const alpha=n=>{let s='';while(n>0){n--;s=String.fromCharCode(97+n%26)+s;n=Math.floor(n/26);}return s;};
 function roman(n) {
   invariant(n<=3999,'Roman numbering above 3999 needs an explicit alternate profile');
