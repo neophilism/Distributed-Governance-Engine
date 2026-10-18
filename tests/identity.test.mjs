@@ -160,6 +160,20 @@ test('recovery and primary-only sessions cannot enroll passkeys or authorize dev
   const who=await account(),codes=await store.issueRecoveryCodes(who),recovery={...await store.recoverAccount(who.accountId,codes.recoveryCodes[0]),origin};
   await denied(store.beginPasskeyEnrollment(recovery));await denied(store.beginPasskeyAuthentication(recovery));await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
 });
+test('provider restoration requires the restricted session and its already-enrolled passkey',async()=>{
+  const who=await account('provider-loss'),enrollment=await store.beginPasskeyEnrollment(who);
+  await store.finishPasskeyEnrollment(who,enrollment.challenge,{accepted:true,credentialId:passkeyId});
+  const codes=await store.issueRecoveryCodes(who),recovery={...await store.recoverAccount(who.accountId,codes.recoveryCodes[0]),origin};
+  await denied(store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time}));
+  const authentication=await store.beginPasskeyAuthentication(recovery);
+  await store.finishPasskeyAuthentication(recovery,authentication.challenge,{accepted:true,userVerified:true,credentialId:passkeyId,newCounter:1});
+  await denied(store.authorizeDevice(recovery,'b'.repeat(64)));
+  const restored=await store.restoreProviderIdentity(recovery,{issuer:'https://replacement.example',subject:'replacement',authenticatedAt:time,authenticationMethods:['pwd','mfa']});
+  assert.equal(restored.accountId,who.accountId);assert.equal(restored.authenticationMethod,'oidc');assert.equal(restored.authenticationAssurance,'multifactor');
+  await denied(store.account(recovery.sessionToken));assert.equal((await store.account(restored.sessionToken)).accountId,who.accountId);
+  assert.deepEqual((await db.query('SELECT issuer,subject FROM dge_identity.accounts WHERE id=$1',[who.accountId])).rows,[{issuer:'https://replacement.example',subject:'replacement'}]);
+  assert.ok((await db.query("SELECT 1 FROM dge_identity.account_security_events WHERE account_id=$1 AND kind='provider-identity-restored'",[who.accountId])).rows.length);
+});
 test('sensitive membership changes require login within five minutes',async()=>{
   const owner=await account(),target=await account('target'),{tenantId}=await store.createTenant(owner);time+=300001;
   assert.equal((await store.members(owner,tenantId)).items.length,1);await denied(store.invite(owner,tenantId,target.accountId,'viewer'));
