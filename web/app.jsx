@@ -761,10 +761,19 @@ function App() {
             {status}
           </p>
           {issues.length > 0 && (
-            <p role="alert">
-              {issues.length} unresolved reference(s) must be corrected before
-              finalization.
-            </p>
+            <section role="alert" aria-label="Legal reference and definition issues">
+              <p>{issues.length} legal reference or definition issue(s) must be resolved before finalization.</p>
+              <ul>
+                {issues.slice(0, 20).map((issue, index) => (
+                  <li key={issue.code + issue.sourceId + index}>
+                    {issue.code.replaceAll("_", " ").toLowerCase()}: {issue.sourceId}
+                    {issue.targetId ? " refers to " + issue.targetId : ""}
+                    {issue.otherId ? " conflicts with " + issue.otherId : ""}
+                  </li>
+                ))}
+              </ul>
+              {issues.length > 20 && <p>Additional issues are not shown.</p>}
+            </section>
           )}
         </section>
         <aside className="side-panel">
