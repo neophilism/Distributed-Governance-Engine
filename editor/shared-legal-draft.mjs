@@ -8,10 +8,10 @@ import {validateLegalDocument} from '../src/legal-structure.mjs';
  * The caller must separately authenticate writers and persist/transport updates.
  * Private content is rejected until reviewed end-to-end encrypted transport exists.
  */
-export function createPublicSharedDraft({document,initialState=null,writable=true,
+export function createPublicSharedDraft({document,classification,initialState=null,writable=true,
  onLocalUpdate=()=>{},maxUpdateBytes=65536}={}) {
  const base=validateLegalDocument(document);
- if(base.mode!=='collaboration'||base.lifecycle!=='draft'||
+ if(classification!=='public'||base.mode!=='collaboration'||base.lifecycle!=='draft'||
     !Number.isSafeInteger(maxUpdateBytes)||maxUpdateBytes<1||maxUpdateBytes>65536||
     typeof onLocalUpdate!=='function'||typeof writable!=='boolean')
   throw Error('Yjs draft requires an authorized public collaboration session');
