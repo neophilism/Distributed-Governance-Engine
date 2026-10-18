@@ -8,3 +8,5 @@ export * from './text-selections.mjs';
 export * from './legal-proposals.mjs';
 
 export * from './discussion.mjs';
+
+export * from './private-collaboration-crypto.mjs';
