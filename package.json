@@ -40,7 +40,9 @@
     "./encrypted-draft-cache": "./editor/encrypted-draft-cache.mjs",
     "./public-shared-draft": "./editor/shared-legal-draft.mjs",
     "./realtime-editor": "./editor/realtime-editor.mjs",
-    "./private-collaboration-crypto": "./src/private-collaboration-crypto.mjs"
+    "./private-collaboration-crypto": "./src/private-collaboration-crypto.mjs",
+    "./private-document-store": "./server/private-document-store.mjs",
+    "./private-document-http": "./server/private-document-http.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
