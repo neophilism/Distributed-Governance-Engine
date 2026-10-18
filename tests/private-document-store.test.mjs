@@ -33,6 +33,21 @@ test('a real server cannot instantiate a private store without a device authorit
  assert.throws(()=>createPrivateDocumentStore({identity}),/Verified private device/);
  assert.throws(()=>createPrivateDocumentStore({identity,authorizeDevice:true}),/Verified private device/);
 });
+test('the private authorization adapter receives verified account and session context, never body-asserted authority',async()=>{
+ const captured=[];
+ const gate=createPrivateDocumentStore({identity,authorizeDevice:async evidence=>{
+  captured.push(evidence);
+  return evidence.actor.accountId===owner.accountId &&
+   evidence.credentials.sessionToken===owner.sessionToken;
+ }});
+ const item=payload();
+ await gate.create(owner,tenantId,item);
+ await gate.read(owner,tenantId,item.documentId);
+ assert.equal(captured.length,2);
+ assert.deepEqual(captured.map(e=>e.operation),['create','read']);
+ assert(captured.every(e=>e.tenantId===tenantId&&e.documentId===item.documentId));
+ await assert.rejects(gate.read(viewer,tenantId,item.documentId),/PRIVATE_DEVICE_NOT_AUTHORIZED/);
+});
 test('private create, read and save persist only ciphertext and exact immutable versions',async()=>{
  const item=payload(),created=await privateDocs.create(owner,tenantId,item);
  assert.equal(created.visibility,'private');
