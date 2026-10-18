@@ -35,7 +35,9 @@
     "./legal-proposals": "./src/legal-proposals.mjs",
     "./proposal-store": "./server/proposal-store.mjs",
     "./discussion": "./src/discussion.mjs",
-    "./discussion-store": "./server/discussion-store.mjs"
+    "./discussion-store": "./server/discussion-store.mjs",
+    "./private-crypto": "./src/private-crypto.mjs",
+    "./encrypted-draft-cache": "./editor/encrypted-draft-cache.mjs"
   },
   "dependencies": {
     "openid-client": "6.8.8",
