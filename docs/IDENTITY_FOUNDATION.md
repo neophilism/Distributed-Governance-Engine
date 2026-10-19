@@ -1,4 +1,4 @@
-# Identity and organization access — partial DCE-002
+# Identity and organization access  partial DCE-002
 
 This server library adds OpenID Connect (OIDC) login, database-backed sessions, organization roles and invitations. OIDC is the standard protocol for authentication through an existing identity provider. No cloud resource, provider account, mail service or paid subscription is created. HTTP routes, a shared account/workspace UI and a direct-TLS application server are now implemented. They have not been deployed with a real provider. See ACCOUNT_HTTP.md for setup and route boundaries.
 
@@ -20,9 +20,13 @@ Passkey inventory exposes only the account's own credential metadata and recorde
 
 ## Storage and rollout
 
-Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies ordered migrations 001–003, records their checksums and refuses edited history. The migration credential must remain separate from request credentials. Preserve applied files after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.
+Use one API service and the planned Postgres database. `pgTransactions(pool)` keeps each transaction on one connection. `applyIdentityMigrations(adminTransaction)` applies ordered migrations 001003, records their checksums and refuses edited history. The migration credential must remain separate from request credentials. Preserve applied files after merge; later schema changes need new migrations. Roll back by disabling new routes while preserving identity/audit rows; no destructive down migration is supplied.
 
 An administrator grants the `dge_identity_runtime` permission group to a dedicated service login. Never connect ordinary requests as the schema owner or a Neon/Postgres administrator. The group cannot log in or bypass row security. Organization tables use transaction-local row policies, with active membership/role checks in the service. These policies protect against query mistakes; they do not make the authorized identity service untrusted.
+
+## OIDC callback input containment
+
+The authorization-code callback now fails closed before consuming its single-use browser-bound login state if the callback URL exceeds 8192 characters, the login cookie is not a 43-character URL-safe token, the callback contains missing or duplicate authorization codes or contradictory OAuth error fields, or an optional authorization-response issuer (`iss`) is duplicated or differs from the configured OIDC issuer. A valid single issuer parameter is accepted. Synthetic-provider regression tests cover rejected inputs followed by a successful use of the original untouched login state. This protects callback parsing but is not a substitute for the openid-client token/signature/PKCE validation or a real-provider integration test.
 
 ## Login and sessions
 
